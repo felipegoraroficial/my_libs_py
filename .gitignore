@@ -1,0 +1,4 @@
+venv
+PyPI-Recovery.txt
+dist/
+my_libs_py.egg-info/

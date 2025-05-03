@@ -1,1 +1,1 @@
-# my_libs_py
+# Repositório destinado a criação de functions para estudo e cases pessoais!

@@ -5,7 +5,7 @@ import re
 from pyspark.sql import DataFrame
 
 
-class clean_data():
+class silver_data():
 
     def change_null_string(df):
 
@@ -233,7 +233,36 @@ class clean_data():
 
         return df
 
-class transform_data():
+
+    def union_dataframes(dataframes: list[DataFrame]) -> DataFrame:
+
+        """
+        Une uma lista de DataFrames .
+
+        Parâmetros:
+        dataframes (lista de dataframes).: A lista de DataFrames a serem unidos.
+
+        Retorna:
+        DataFrame: Um novo DataFrame resultante da união da lista de dataframes de entrada.
+        """
+
+        if not dataframes:
+            print("A lista de DataFrames está vazia.")
+            return None
+
+        if len(dataframes) == 1:
+            return dataframes[0]
+
+        primeiro_df = dataframes[0]
+        dataframes_restantes = dataframes[1:]
+
+        dataframe_unido = primeiro_df
+        for df in dataframes_restantes:
+            dataframe_unido = dataframe_unido.unionByName(df)
+
+        return dataframe_unido
+
+class gold_data():
 
     def convert_currency_column(df, col_name):
 
@@ -331,35 +360,6 @@ class transform_data():
             ).otherwise(lit("moeda não identificada"))
         )
         return df
-
-
-    def union_dataframes(dataframes: list[DataFrame]) -> DataFrame:
-
-        """
-        Une uma lista de DataFrames .
-
-        Parâmetros:
-        dataframes (lista de dataframes).: A lista de DataFrames a serem unidos.
-
-        Retorna:
-        DataFrame: Um novo DataFrame resultante da união da lista de dataframes de entrada.
-        """
-
-        if not dataframes:
-            print("A lista de DataFrames está vazia.")
-            return None
-
-        if len(dataframes) == 1:
-            return dataframes[0]
-
-        primeiro_df = dataframes[0]
-        dataframes_restantes = dataframes[1:]
-
-        dataframe_unido = primeiro_df
-        for df in dataframes_restantes:
-            dataframe_unido = dataframe_unido.unionByName(df)
-
-        return dataframe_unido
 
 
     def concat_columns(df, column1, column2, name_column):

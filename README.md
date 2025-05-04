@@ -23,6 +23,13 @@ https://docs.databricks.com/aws/pt/lakehouse/medallion
 
 Para utilização das funções abaixo. é necessário utilizar um dataframe em pysaprk
 
+As funções abaixo são referente a etapa de um processo silver em uma arquitetura de dados medalhão
+
+Onde nessa etapa o foco é realizar uma limpeza e normalização dos dados, definição de schema e 
+outras modelagens que não são referente a regras de negócio.
+
+No final, teremos uma tabela de dados confiável para a próxima etapa do pipeline.
+
 - column_to_date: Converte uma coluna de string para o tipo de dado de data.
 - column_to_timestamp: Converte uma coluna de string para o tipo timestamp.
 - numbers_to_date: Converte uma coluna de números em datas.
@@ -36,16 +43,23 @@ Para utilização das funções abaixo. é necessário utilizar um dataframe em 
 - filter_like: Filtra os registros de um DataFrame onde os valores de uma coluna específica correspondem a um padrão regex.
 - filter_by_max_date: Filtra o DataFrame para manter apenas as linhas com a maior data.
 - organize_data: Ordena o dataframe de acordo com uma coluna de identificação eliminando possivéis duplicatas.
+- convert_currency_column: Converte uma coluna de moeda no DataFrame para o tipo double.
+- type_monetary: Identifica o tipo de 'moeda' com base de uma coluna específicas.
+- replace_characters: Substitui um caracter específico por outro em uma coluna do DataFrame.
+- concat_columns: Concatena duas colunas de um DataFrame com um separador "_".
 
 ## Funções da Camada Gold
 
 Para utilização das funções abaixo. é necessário utilizar um dataframe em pysaprk
 
-- convert_currency_column: Converte uma coluna de moeda no DataFrame para o tipo double.
-- type_monetary: Identifica o tipo de 'moeda' com base de uma coluna específicas.
+As funções abaixo são referente a etapa de um processo gold em uma arquitetura de dados medalhão
+
+Onde somente funções que são referente a regra de negocio passam por essa etapa.
+Além de funções para tratamento de dados, podemos realizar agragações para definição de tabela fato e dimenssão.
+
+No final, teremos uma tabela de dados apta para criação de dataviz e processo de machine leaning.
+
 - extract_memory: Adiciona uma coluna com a quantidade de memória em GB extraída de outra coluna do DataFrame.
-- concat_columns: Concatena duas colunas de um DataFrame com um separador "_".
-- replace_characters: Substitui um caracter específico por outro em uma coluna do DataFrame.
 - extract_characters: Extrai caracteres específicos de uma coluna e coloca o resultado em outra coluna do DataFrame.
 - condition_like: Adiciona uma nova coluna ao DataFrame com valores 'Sim' ou 'Nao' com base em uma condição de correspondência de padrão.
 

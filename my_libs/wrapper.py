@@ -262,7 +262,6 @@ class silver_data():
 
         return dataframe_unido
 
-class gold_data():
 
     def convert_currency_column(df, col_name):
 
@@ -303,6 +302,69 @@ class gold_data():
         return df
     
 
+    def type_monetary(df: DataFrame, column: str) -> DataFrame:
+        
+        """
+        Atualiza a coluna 'moeda' no DataFrame com base em condições específicas.
+
+        :param df: DataFrame do PySpark.
+        :param column: Nome da coluna a ser analisada para identificação da moeda.
+        :return: DataFrame atualizado.
+        """
+
+        df = df.withColumn(
+            "moeda",
+            when(
+                col(column).contains("R$"),
+                lit("R$")
+            ).when(
+                col(column).rlike(r"[$€£¥]"),
+                regexp_extract(col(column), r"([$€£¥])", 1)
+            ).otherwise(lit("moeda não identificada"))
+        )
+        return df
+    
+
+    def concat_columns(df, column1, column2, name_column):
+
+        """
+        Concatena duas colunas de um DataFrame com um separador "_".
+        
+        Parâmetros:
+        df (DataFrame): O DataFrame de entrada.
+        column1 (str): O nome da primeira coluna a ser concatenada.
+        column2 (str): O nome da segunda coluna a ser concatenada.
+        name_column (str): O nome da nova coluna resultante da concatenação.
+        
+        Retorna:
+        DataFrame: O DataFrame com a nova coluna concatenada.
+        """
+
+        df = df.withColumn(name_column, concat_ws("_", col(column1).cast("string"), col(column2).cast("string")))
+        
+        return df
+    
+
+    def replace_characters(df, coluna, caracter, substituto):
+        
+        """
+        Substitui um caracter específico por outro em uma coluna do DataFrame.
+
+        :param df: DataFrame do PySpark.
+        :param coluna: Nome da coluna onde o caracter deve ser substituído.
+        :param caracter: O caracter a ser substituído.
+        :param substituto: O caracter substituto.
+        :return: DataFrame atualizado.
+        """
+
+        df = df.withColumn(coluna, regexp_replace(coluna, caracter, substituto))
+        
+        return df
+    
+
+class gold_data():
+    
+
     def extract_memory(df, column_name):
 
         """
@@ -338,66 +400,6 @@ class gold_data():
         extrair_memoria_udf = udf(extract_memory_info, StringType())
         return df.withColumn('memoria', extrair_memoria_udf(col(column_name)))
     
-
-    def type_monetary(df: DataFrame, column: str) -> DataFrame:
-        
-        """
-        Atualiza a coluna 'moeda' no DataFrame com base em condições específicas.
-
-        :param df: DataFrame do PySpark.
-        :param column: Nome da coluna a ser analisada para identificação da moeda.
-        :return: DataFrame atualizado.
-        """
-
-        df = df.withColumn(
-            "moeda",
-            when(
-                col(column).contains("R$"),
-                lit("R$")
-            ).when(
-                col(column).rlike(r"[$€£¥]"),
-                regexp_extract(col(column), r"([$€£¥])", 1)
-            ).otherwise(lit("moeda não identificada"))
-        )
-        return df
-
-
-    def concat_columns(df, column1, column2, name_column):
-
-        """
-        Concatena duas colunas de um DataFrame com um separador "_".
-        
-        Parâmetros:
-        df (DataFrame): O DataFrame de entrada.
-        column1 (str): O nome da primeira coluna a ser concatenada.
-        column2 (str): O nome da segunda coluna a ser concatenada.
-        name_column (str): O nome da nova coluna resultante da concatenação.
-        
-        Retorna:
-        DataFrame: O DataFrame com a nova coluna concatenada.
-        """
-
-        df = df.withColumn(name_column, concat_ws("_", col(column1).cast("string"), col(column2).cast("string")))
-        
-        return df
-
-
-    def replace_characters(df, coluna, caracter, substituto):
-        
-        """
-        Substitui um caracter específico por outro em uma coluna do DataFrame.
-
-        :param df: DataFrame do PySpark.
-        :param coluna: Nome da coluna onde o caracter deve ser substituído.
-        :param caracter: O caracter a ser substituído.
-        :param substituto: O caracter substituto.
-        :return: DataFrame atualizado.
-        """
-
-        df = df.withColumn(coluna, regexp_replace(coluna, caracter, substituto))
-        
-        return df
-
 
     def extract_characters(df, col_name, col_extract, padrao):
         
@@ -435,6 +437,7 @@ class gold_data():
         df = df.withColumn(new_column_name, when(col(condition_column).rlike(pattern), 'Sim').otherwise('Nao'))
 
         return df
+
 
 class test_data():
 
@@ -613,7 +616,7 @@ class test_data():
 
         print(f'Número de colunas dataframe: {len_columns_df}')
 
-        print(f'Número de nomes lista> {len_list_names}')
+        print(f'Número de nomes lista: {len_list_names}')
 
         print(f'Diferença colunas dataframe e nomes lista: {len_columns_df - len_list_names}')
 

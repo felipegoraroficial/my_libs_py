@@ -1,366 +1,199 @@
-from pyspark.sql.functions import col, regexp_extract, row_number, concat_ws, when, trim, regexp_replace, udf, lit, upper, lower, to_date, to_timestamp, expr
-from pyspark.sql.window import Window
-from pyspark.sql.types import StringType, IntegerType
+from pyspark.sql.functions import col, when, regexp_replace, udf, to_date, max, regexp_extract, approx_count_distinct, count
+from pyspark.sql.types import StringType,DoubleType
+from delta.tables import DeltaTable
+from pyspark.sql import SparkSession
 import re
-from pyspark.sql import DataFrame
+
+
+class reading_data():
+
+    def last_partition_delta(nome_tabela, coluna_particao):
+        """
+        Lê a última partição de uma tabela Delta registrada no catálogo usando Spark SQL.
+
+        Args:
+            nome_tabela (str): O nome completo da tabela Delta no catálogo
+                                (ex: 'nome_do_banco_de_dados.nome_da_tabela').
+            coluna_particao (str): O nome da coluna de particionamento.
+
+        Returns:
+            pyspark.sql.DataFrame: Um DataFrame contendo os dados da última partição.
+                                    Retorna um DataFrame vazio se a tabela não existir
+                                    ou se não houver partições.
+        """
+
+        spark = SparkSession.builder.getOrCreate()
+        
+        try:
+            df = spark.table(nome_tabela)
+        except Exception as e:
+            print(f"Erro ao acessar a tabela '{nome_tabela}': {e}")
+            return spark.createDataFrame([], schema=df.schema if 'df' in locals() else [])
+
+        ultima_particao_df = df.select(max(coluna_particao).alias("ultima_particao"))
+        ultima_particao = ultima_particao_df.first()["ultima_particao"] if ultima_particao_df.first() else None
+
+        if ultima_particao is not None:
+            filtro = f"{coluna_particao} = '{ultima_particao}'"
+            df_ultima_particao = df.where(filtro)
+            print(f"Tabela '{nome_tabela}' filtrada pela última partição: {ultima_particao}")
+
+            qtd = df_ultima_particao.count()
+
+            assert qtd > 0, f"A última partição '{ultima_particao}' da tabela '{nome_tabela}' está vazia."
+            
+            print(f"Leitura da tabela '{nome_tabela}' carregada com sucesso. Número de linhas: {qtd}")
+
+            return df_ultima_particao
+        else:
+            print(f"Não foram encontradas partições na tabela '{nome_tabela}'.")
+            return spark.createDataFrame([], schema=df.schema)
 
 
 class silver_data():
 
-    def change_null_string(df):
+    def union_dfs_list(dataframe_list):
 
-        """
-        Substitui valores nulos em colunas de string por '-'.
-
-        Parâmetros:
-        df (DataFrame): O DataFrame de entrada.
-
-        Retorna:
-        DataFrame: O DataFrame com valores nulos substituídos por '-'.
-        """
-
-        string_columns = [col_name for col_name, data_type in df.dtypes if data_type == 'string']
-        df = df.na.fill('-', subset = string_columns)
-
-        return df
-
-
-    def change_null_numeric(df, type):
-
-        """
-        Substitui valores nulos em colunas numéricas por 0.
-
-        Parâmetros:
-        df (DataFrame): O DataFrame de entrada.
-        type (str): O tipo de dado das colunas numéricas (ex: 'int', 'double').
-
-        Retorna:
-        DataFrame: O DataFrame com valores nulos substituídos por 0 nas colunas numéricas especificadas.
-        """
-
-        numeric_columns = [col_name for col_name, data_type in df.dtypes if data_type == type]
-        
-        df = df.na.fill(0, subset=numeric_columns)
-
-        return df
-    
-
-    def organize_data(df, column_id, column_order):
-
-        window_spec = Window.partitionBy(column_id).orderBy(col(column_order).desc())
-
-        df = df.withColumn("row_number", row_number().over(window_spec))
-
-        df = df.withColumn("status", when(col("row_number") == 1, "ativo").otherwise("inativo"))
-        df = df.drop("row_number")
-
-        return df
-
-
-    def remove_extra_spaces(df):
-
-        """
-        Remove espaços em branco extras de todas as colunas de string em um DataFrame.
-
-        Esta função percorre todas as colunas do tipo string no DataFrame fornecido
-        e remove qualquer espaço em branco extra no início, fim e dentro das strings.
-
-        Parâmetros:
-        df (pyspark.sql.DataFrame): O DataFrame de entrada.
-
-        Retorna:
-        pyspark.sql.DataFrame: Um novo DataFrame com espaços extras removidos de todas as colunas de string.
-        
-        """
-
-        string_cols = [col_name for col_name, col_type in df.dtypes if col_type == 'string']
-
-        for col_name in string_cols:
-
-            df = df.withColumn(col_name, regexp_replace(trim(col(col_name)), r'\s+', ' '))
-            
-        return df
-
-
-    def filter_like(df, coluna, padrao):
-
-        """
-        Filtra os registros de um DataFrame onde os valores de uma coluna específica correspondem a um padrão regex.
-
-        Args:
-        df (DataFrame): O DataFrame a ser filtrado.
-        coluna (str): O nome da coluna a ser filtrada.
-        padrao (str): O padrão regex usado para filtrar os valores da coluna.
-
-        Returns:
-        DataFrame: Um novo DataFrame contendo apenas os registros que correspondem ao padrão regex.
-        """
-
-        df = df.filter(col(coluna).rlike(padrao))
-
-        return df
-
-
-    def upper_string_column(df,column_name):
-
-        """
-        Converte todos os caracteres de uma coluna de string para maiúsculas.
-
-        Parâmetros:
-        df (DataFrame): O DataFrame de entrada.
-        column_name (str): O nome da coluna que será convertida para maiúsculas.
-
-        Retorna:
-        DataFrame: O DataFrame com a coluna especificada convertida para maiúsculas.
-        """
-
-        df = df.withColumn(column_name, upper(col(column_name)))
-
-        return df
-    
-
-    def lower_string_column(df,column_name):
-
-        """
-        Converte todos os caracteres de uma coluna de string para minúsculas.
-
-        Parâmetros:
-        df (DataFrame): O DataFrame de entrada.
-        column_name (str): O nome da coluna a ser convertida para minúsculas.
-
-        Retorna:
-        DataFrame: O DataFrame com a coluna especificada convertida para minúsculas.
-        """
-
-        df = df.withColumn(column_name, lower(col(column_name)))
-
-        return df
-    
-
-    def change_column_name(df, col_original, col_change):
-
-        """
-        Altera o nome de uma coluna em um DataFrame.
-
-        Parâmetros:
-        df (DataFrame): O DataFrame no qual a coluna será renomeada.
-        col_original (str): O nome original da coluna.
-        col_change (str): O novo nome da coluna.
-
-        Retorna:
-        DataFrame: O DataFrame com a coluna renomeada.
-        """
-
-        df = df.withColumnRenamed(col_original, col_change)
-        
-        return df
-
-
-    def column_to_date(df, column_name, format):
-
-        """
-        Converte uma coluna de string para o tipo de dado de data.
-
-        Parâmetros:
-        df (DataFrame): O DataFrame que contém a coluna a ser convertida.
-        column_name (str): O nome da coluna que será convertida para data.
-        format (str): O formato da data na coluna de string.
-
-        Retorna:
-        DataFrame: O DataFrame com a coluna convertida para o tipo de dado de data.
-        """
-
-        df = df.withColumn(column_name, to_date(column_name, format))
-        
-        return df
-    
-
-    def column_to_timestamp(df,column_name,format):
-
-        """
-        Converte uma coluna de um DataFrame para o tipo timestamp.
-
-        Parâmetros:
-        df (DataFrame): O DataFrame de entrada.
-        column_name (str): O nome da coluna a ser convertida.
-        format (str): O formato da data/hora da coluna.
-
-        Retorna:
-        DataFrame: O DataFrame com a coluna convertida para timestamp.
-        """
-
-        df = df.withColumn(column_name, to_timestamp(column_name,format))
-
-        return df
-
-
-    def numbers_to_date(df, coluna):
-        
-        """
-        Converte uma coluna de números em datas.
-
-        Parâmetros:
-        df (DataFrame): O DataFrame de entrada.
-        coluna (str): O nome da coluna que contém os números a serem convertidos.
-
-        Retorna:
-        DataFrame: O DataFrame com a coluna convertida para datas.
-        """
-
-        df = df.withColumn(coluna, col(coluna).cast(IntegerType()))
-        
-        df = df.withColumn(coluna, to_date(expr(f"date_add('1899-12-30', `{coluna}`)")))
-        
-        return df
-
-
-    def filter_by_max_date(df, column_date):
-
-        """
-        Filtra o DataFrame para manter apenas as linhas com a data máxima.
-
-        Parâmetros:
-        df (DataFrame): O DataFrame de entrada.
-        column_date (str): O nome da coluna que contém as datas.
-
-        Retorna:
-        DataFrame: Um DataFrame filtrado contendo apenas as linhas com a data máxima.
-        """
-
-        max_date = df.select(max(column_date)).collect()[0][0]
-
-        df = df.filter(df[column_date] == max_date)
-
-        return df
-
-
-    def union_dataframes(dataframes: list[DataFrame]) -> DataFrame:
-
-        """
-        Une uma lista de DataFrames .
-
-        Parâmetros:
-        dataframes (lista de dataframes).: A lista de DataFrames a serem unidos.
-
-        Retorna:
-        DataFrame: Um novo DataFrame resultante da união da lista de dataframes de entrada.
-        """
-
-        if not dataframes:
-            print("A lista de DataFrames está vazia.")
+        print("Verificando se lista de dataframes está vazia")
+        if not dataframe_list:
             return None
 
-        if len(dataframes) == 1:
-            return dataframes[0]
+        print("Verificando se lista de dataframes contém apenas 1 df")
+        if len(dataframe_list) == 1:
+            return dataframe_list[0]
+        
+        print(f"Quantidade de dataframes na lista: {len(dataframe_list)}")
 
-        primeiro_df = dataframes[0]
-        dataframes_restantes = dataframes[1:]
+        print("Iniciando processo para unir dataframes")
+        df_final = dataframe_list[0]
+        for i in range(1, len(dataframe_list)):
+            df_final = df_final.union(dataframe_list[i])
 
-        dataframe_unido = primeiro_df
-        for df in dataframes_restantes:
-            dataframe_unido = dataframe_unido.unionByName(df)
+        linhas_final = df_final.count()
 
-        return dataframe_unido
+        print(f"União entre os dataframes realizado, quantidade de linhas: {linhas_final}")
+            
+        total_linhas = sum(df.count() for df in dataframe_list)
+
+        assert total_linhas == linhas_final, f"União dos datraframes falhou!"
+
+        return df_final
 
 
-    def convert_currency_column(df, col_name):
-
+    def filter_not_null_value(df, coluna):
         """
-        Converte uma coluna de moeda no DataFrame para o tipo double.
+        Filtra um DataFrame para remover valores nulos em uma coluna específica.
 
-        Parâmetros:
-        df (DataFrame): O DataFrame de entrada.
-        col_name (str): O nome da coluna que contém os valores de moeda.
-
-        Retorna:
-        DataFrame: O DataFrame com a coluna de moeda convertida para double.
+        :param df: DataFrame do PySpark
+        :param coluna: Nome da coluna onde será aplicado o filtro
+        :return: DataFrame filtrado sem valores nulos na coluna especificada
         """
 
-        valor_real_pattern = r"R\$?\s*\d{1,3}(\.\d{3})*(,\d{2})?"
+        dffiltered = df.filter(col(coluna).isNotNull())
 
-        df = df.withColumn(
-                col_name,
-                when(col(col_name).rlike(valor_real_pattern),
+        qtddotal = df.count()
+        qtdnotnull = df.filter(col(coluna).isNotNull()).count()
+        qtdnull = df.filter(col(coluna).isNull()).count()
+
+        print(f"dataframe filtrado, numero de linhas: {qtdnotnull}")
+
+        assert qtddotal == (qtdnull + qtdnotnull)
+
+        print(f"Filtro ralizado com sucesso")
+        print(f"df origem {qtddotal} linhas = df filtrado {qtdnotnull} linhas + df não filtrado {qtdnull} linhas")
+
+        return dffiltered
+
+
+    def define_data_columns(df):
+        """
+        Identifica colunas do tipo string, verifica se todos os valores seguem o formato 'YYYY-MM-DD' com regex,
+        e converte as colunas para o tipo date quando todas as ocorrências forem compatíveis.
+
+        :param df: DataFrame do PySpark
+        :return: DataFrame com as colunas convertidas para o formato date quando aplicável
+        """
+        formato_regex = r"^\d{4}-\d{2}-\d{2}$"  # Regex para formato 'YYYY-MM-DD'
+
+        colunas_string = [coluna for coluna, dtype in df.dtypes if dtype == "string"]  
+
+        print(f"Colunas strings identificadas no dataframes: {colunas_string}")
+
+        for coluna in colunas_string:
+            df_sem_nulos = df.filter(col(coluna).isNotNull())
+
+            match_count = df_sem_nulos.filter(regexp_extract(col(coluna), formato_regex, 0) != "").count()
+            total_count = df_sem_nulos.count()
+
+            if match_count == total_count:  
+
+                print(f"Coluna com padrões de data para a conversão: {coluna}")
+
+                df = df.withColumn(coluna, to_date(col(coluna), "yyyy-MM-dd"))
+
+                novo_tipo = dict(df.dtypes)[coluna]
+                assert novo_tipo == "date", f"Erro: A coluna {coluna} não foi convertida corretamente! Tipo atual: {novo_tipo}"
+
+                print(f"Coluna {coluna} convertida com sucesso, tipo identificado = {novo_tipo}")
+
+        return df
+
+
+    def define_numeric_columns(df):
+        # Regex para identificar valores percentuais e monetários
+        regex_percentual = re.compile(r"^\d+%$")
+        regex_monetario = re.compile(r"^R\$?\s?\d{1,3}(\.\d{3})*(,\d{2})?$")
+
+        # Obtendo colunas de tipo string
+        colunas_string = [coluna for coluna, dtype in df.dtypes if dtype == "string"]
+        colunas_percentuais = []
+        colunas_monetarias = []
+
+        # Identifica colunas com valores percentuais e monetários
+        for coluna in colunas_string:
+            df_sem_nulos = df.filter(col(coluna).isNotNull())
+            valores_amostra = df_sem_nulos.select(coluna).rdd.map(lambda row: row[0]).collect()
+
+            if any(bool(regex_percentual.match(str(valor))) for valor in valores_amostra):
+                print(f"A coluna '{coluna}' contém valores no formato percentual.")
+                colunas_percentuais.append(coluna)
+
+            if any(bool(regex_monetario.match(str(valor))) for valor in valores_amostra):
+                print(f"A coluna '{coluna}' contém valores no formato monetário.")
+                colunas_monetarias.append(coluna)
+
+        # Aplica a conversão para valores percentuais
+        for coluna in colunas_percentuais:
+            df = df.withColumn(
+                coluna,
+                when(
+                    col(coluna).rlike("^\d+%$"),
+                    (regexp_replace(col(coluna), "%", "").cast(DoubleType()) / 100)
+                ).otherwise(col(coluna))
+            ).withColumn(coluna, col(coluna).cast(DoubleType()))
+
+            print(f"Coluna {coluna} convertida com sucesso para tipo 'double'.")
+
+        # Aplica a conversão para valores monetários
+        for coluna in colunas_monetarias:
+            df = df.withColumn(
+                coluna,
+                when(
+                    col(coluna).rlike("^R\\$?\\s?\\d{1,3}(\\.\\d{3})*(,\\d{2})?$"),
                     regexp_replace(
                         regexp_replace(
-                            regexp_replace(
-                                regexp_replace(
-                                    col(col_name),
-                                    "[^0-9,R\$]", ""
-                                ),
-                                "R\$", ""
-                            ),
-                            "\\.", ""
+                            regexp_replace(col(coluna), "R\\$", ""), 
+                            "\\.", "" 
                         ),
-                        ",", "."
-                    )
-                ).otherwise(col(col_name))
-            ).withColumn(col_name, col(col_name).cast("double")
-        )
-        
+                        ",", "."  
+                    ).cast(DoubleType())
+                ).otherwise(col(coluna))
+            ).withColumn(coluna, col(coluna).cast(DoubleType()))
+
+            print(f"Coluna {coluna} convertida com sucesso para tipo 'double'.")
 
         return df
-    
 
-    def type_monetary(df: DataFrame, column: str) -> DataFrame:
-        
-        """
-        Atualiza a coluna 'moeda' no DataFrame com base em condições específicas.
-
-        :param df: DataFrame do PySpark.
-        :param column: Nome da coluna a ser analisada para identificação da moeda.
-        :return: DataFrame atualizado.
-        """
-
-        df = df.withColumn(
-            "moeda",
-            when(
-                col(column).contains("R$"),
-                lit("R$")
-            ).when(
-                col(column).rlike(r"[$€£¥]"),
-                regexp_extract(col(column), r"([$€£¥])", 1)
-            ).otherwise(lit("moeda não identificada"))
-        )
-        return df
-    
-
-    def concat_columns(df, column1, column2, name_column):
-
-        """
-        Concatena duas colunas de um DataFrame com um separador "_".
-        
-        Parâmetros:
-        df (DataFrame): O DataFrame de entrada.
-        column1 (str): O nome da primeira coluna a ser concatenada.
-        column2 (str): O nome da segunda coluna a ser concatenada.
-        name_column (str): O nome da nova coluna resultante da concatenação.
-        
-        Retorna:
-        DataFrame: O DataFrame com a nova coluna concatenada.
-        """
-
-        df = df.withColumn(name_column, concat_ws("_", col(column1).cast("string"), col(column2).cast("string")))
-        
-        return df
-    
-
-    def replace_characters(df, coluna, caracter, substituto):
-        
-        """
-        Substitui um caracter específico por outro em uma coluna do DataFrame.
-
-        :param df: DataFrame do PySpark.
-        :param coluna: Nome da coluna onde o caracter deve ser substituído.
-        :param caracter: O caracter a ser substituído.
-        :param substituto: O caracter substituto.
-        :return: DataFrame atualizado.
-        """
-
-        df = df.withColumn(coluna, regexp_replace(coluna, caracter, substituto))
-        
-        return df
-    
 
 class gold_data():
     
@@ -439,188 +272,64 @@ class gold_data():
         return df
 
 
-class test_data():
-
-    def df_not_empty(df):
-
-        is_empty = df.isEmpty()
-
-        print(f'Está vazio? {is_empty}')
-
-        assert is_empty == False
-
-        count_lines_df = df.count()
-
-        print(f'Quantidade de linhas: {count_lines_df}')
-
-        assert count_lines_df != 0 
-
-
-    def schema_equals_df_schema(df,schema):
-
-        df_columns_list_names = df.schema.fieldNames()
-
-        schema_columns_list_names = schema.fieldNames()
-
-        diferences_array = ['| Nome Dataframe | Nome Schema | Coluna |']
-
-        for i, name in enumerate(df_columns_list_names):
-
-            if name != schema_columns_list_names[i]:
-
-                diferences_array.append(f'| {name} | {schema_columns_list_names[i]} | {i_+ 1} |')
-
-        print('Nomes')
-
-        print(f'Nomes colunas dataframes: \n{df_columns_list_names}')
-
-        print(f'Nomes colunas schema: \n{schema_columns_list_names}')
-
-        if(len(diferences_array) > 1):
-
-            print(f'Diferença ({len(diferences_array) - 1}):')
-
-            for item in diferences_array:
-
-                print(item)
-
-        assert df_columns_list_names == schema_columns_list_names
-
-        df_columns_list_types = [field.dataType for field in df.schema.fields]
-
-        schema_columns_list_types = [field.dataType for field in schema.fields]
-
-        diferences_array = ['| Tipo Dataframe | Tipo Schema | Coluna |']
-
-        for i, _type in enumerate(df_columns_list_types):
-
-            if _type != schema_columns_list_types[i]:
-
-                diferences_array.append(f'| {_type} | {schema_columns_list_types[i]} | {i_+ 1} |')
-
-        print('Tipos')
-
-        print(f'Tipos colunas dataframes: \n{df_columns_list_types}')
-
-        print(f'Tipos colunas schema: \n{schema_columns_list_types}')
-
-        if(len(diferences_array) > 1):
-
-            print(f'Diferença ({len(diferences_array) - 1}):')
-
-            for item in diferences_array:
-
-                print(item)
-
-        assert df_columns_list_types == schema_columns_list_types
-
-
-    def count_df_filtered_filter(df,filter):
-
-        df_filter = df.filter(filter)
-
-        count_lines_filtered = df_filter.count()
-
-        df_unfilter = df.filter(~filter)
-
-        count_lines_unfiltered = df_unfilter.count()
-
-        count_lines_df = df.count()
-
-        print(f'Quantidade de linhas filtradas: {count_lines_filtered}')
-
-        print(f'Quantidade de linhas não filtradas: {count_lines_unfiltered}')
-
-        print(f'Quantidade de linhas totais: {count_lines_df}')
-
-        print(f'Resultado: {count_lines_filtered + count_lines_unfiltered} = {count_lines_df}')
-
-        assert (count_lines_filtered + count_lines_unfiltered) == count_lines_df
-
-
-    def count_df_filtered_is_not_null(df,column):
-
-        df_filter = df.filter(col(column).isNotNull())
-
-        count_lines_filtered = df_filter.count()
-
-        df_unfilter = df.filter(col(column).isNull())
-
-        count_lines_unfiltered = df_unfilter.count()
-
-        count_lines_df = df.count()
-
-        print(f'Quantidade de linhas não nulas: {count_lines_filtered}')
-
-        print(f'Quantidade de linhas nulas: {count_lines_unfiltered}')
-
-        print(f'Quantidade de linhas toais: {count_lines_df}')
-
-        print(f'Resultado: {count_lines_filtered + count_lines_unfiltered} = {count_lines_df}')
-
-        assert (count_lines_filtered + count_lines_unfiltered) == count_lines_df
-
-
-    def count_union_df(df_union, df_list):
-
-        count_lines_df_list = 0
-
-        for df in df_list:
-            count_lines_df_list += df.count()
-
-        count_lines_df_union = df_union.count()
-
-        print(f'Quantidade de linhas da lista de Dataframes: {count_lines_df_list}')
-
-        print(f'Quantidade de linhas do Dataframe Resultante: {count_lines_df_union}')
-
-        print(f'Diferença entre lista de dataframes e dataframe resultante: {count_lines_df_list - count_lines_df_union}')
-
-        assert count_lines_df_list == count_lines_df_union
-
-
-    def list_names_equal_df_names(df,list_name):
-
-        df_columns_list_names = df.schema.fieldNames()
-
-        diferences_array = ['| Nome Dataframe | Nome Lista | Coluna |']
-
-        for i, name in enumerate(df_columns_list_names):
-
-            if name != list_name[i]:
-
-                diferences_array.append(f'| {name} | {list_name[i]} | {i + 1} |')
-
-        print('Nomes')
-
-        print(f'Nomes colunas dataframe:\n{df_columns_list_names}')
-
-        print(f'Lista de nomes:\n{list_name}')
-
-        if(len(diferences_array) > 1):
-
-            print(f'Diferenças ({len(diferences_array) - 1}):')
-
-            for item in diferences_array:
-
-                print(item)
-
-        assert df_columns_list_names == list_name
-
-
-    def number_columns_list_names_and_df(df,list_names):
-
-        len_columns_df = len(df.schema)
-
-        len_list_names = len(list_names)
-
-        print(f'Número de colunas dataframe: {len_columns_df}')
-
-        print(f'Número de nomes lista: {len_list_names}')
-
-        print(f'Diferença colunas dataframe e nomes lista: {len_columns_df - len_list_names}')
-
-        assert len_columns_df == len_list_names
-
-
+class writing_data():
+
+    def last_partition_delta(df, path, modo):
+
+        melhor_coluna = None
+        menor_cardinalidade_alta = float('inf')
+        total_linhas = df.count()
+
+        for coluna in df.columns:
+            # Calcula a cardinalidade aproximada para grandes DataFrames
+            cardinalidade = df.agg(approx_count_distinct(col(coluna)).alias("cardinalidade")).collect()[0]["cardinalidade"]
+
+            # Critério 1: Evitar colunas com cardinalidade muito alta
+            if cardinalidade > total_linhas * 0.5:  # Limite arbitrário, pode ser ajustado
+                print(f"Coluna '{coluna}' tem alta cardinalidade ({cardinalidade}), não recomendada para particionamento.")
+                continue
+
+            # Critério 2: Preferir colunas com cardinalidade moderada a baixa
+            # e que distribuam os dados de forma razoavelmente uniforme (avaliação aproximada)
+            if cardinalidade < menor_cardinalidade_alta:
+                # Avaliação da distribuição aproximada
+                frequencias = df.groupBy(coluna).agg(count("*").alias("count")).withColumn("proporcao", col("count") / total_linhas).collect()
+                distribuicao_ok = True
+                for row in frequencias:
+                    if row["proporcao"] < 0.01:  # Evitar partições muito pequenas (limite arbitrário)
+                        distribuicao_ok = False
+                        break
+
+                if distribuicao_ok:
+                    menor_cardinalidade_alta = cardinalidade
+                    melhor_coluna = coluna
+
+        if melhor_coluna:
+            print(f"Coluna sugerida para particionamento: '{melhor_coluna}' (cardinalidade aproximada: {menor_cardinalidade_alta}).")
+            print(f"Iniciando o carregamento dos daddos no caminho {path} e com o modo {modo}")
+
+            # Salva o DataFrame Spark no formato delta
+            df.write.format("delta") \
+                .partitionBy(melhor_coluna) \
+                .mode(modo) \
+                .saveAsTable(path)
+            
+            # Validação: Verificar se os dados foram salvos corretamente
+            print("Validando os dados salvos...")
+
+            try:
+                delta_table = DeltaTable.forPath(df.sparkSession, path)
+                df_validacao = delta_table.toDF()
+                total_linhas_salvas = df_validacao.count()
+
+                if total_linhas_salvas == total_linhas:
+                    print(f"Validação concluída: Todos os {total_linhas} registros foram corretamente salvos na tabela Delta.")
+                else:
+                    print(f"Alerta: Apenas {total_linhas_salvas} de {total_linhas} registros foram encontrados na tabela Delta.")
+            except Exception as e:
+                print(f"Erro na validação dos dados: {e}")
+
+        else:
+            print("Nenhuma coluna ideal encontrada para particionamento com base nos critérios definidos.")
+            print("Considere outras estratégias como clustering líquido ou revise os critérios de análise.")
  

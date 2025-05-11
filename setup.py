@@ -4,7 +4,7 @@ with open("README.md", "r") as arq:
     readme = arq.read()
 
 setup(name='my-libs-py',
-    version='0.0.7',
+    version='0.0.8',
     license='MIT License',
     author='Felipe Pegoraro',
     long_description=readme,
@@ -13,5 +13,5 @@ setup(name='my-libs-py',
     keywords='libs python',
     description=u'Wrapper para fins de estudo e cases de projetos pessoais',
     packages=['my_libs'],
-    install_requires=['pyspark'],
+    install_requires=['pyspark', 'delta-spark'],
 )

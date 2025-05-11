@@ -25,7 +25,7 @@ class reading_data():
         spark = SparkSession.builder.getOrCreate()
         
         try:
-            df = spark.table(nome_tabela)
+            df = spark.read.format("delta").load(nome_tabela)
         except Exception as e:
             print(f"Erro ao acessar a tabela '{nome_tabela}': {e}")
             return spark.createDataFrame([], schema=df.schema if 'df' in locals() else [])

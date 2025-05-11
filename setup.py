@@ -4,7 +4,7 @@ with open("README.md", "r") as arq:
     readme = arq.read()
 
 setup(name='my-libs-py',
-    version='0.0.8',
+    version='0.0.9',
     license='MIT License',
     author='Felipe Pegoraro',
     long_description=readme,

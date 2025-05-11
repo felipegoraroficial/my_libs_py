@@ -1,5 +1,5 @@
 from pyspark.sql.functions import col, when, regexp_replace, udf, to_date, max, regexp_extract, approx_count_distinct, count
-from pyspark.sql.types import StringType,DoubleType
+from pyspark.sql.types import StringType, DoubleType, IntegerType, FloatType, LongType
 from delta.tables import DeltaTable
 from pyspark.sql import SparkSession
 import re
@@ -191,6 +191,64 @@ class silver_data():
             ).withColumn(coluna, col(coluna).cast(DoubleType()))
 
             print(f"Coluna {coluna} convertida com sucesso para tipo 'double'.")
+
+        return df
+
+
+    def replace_nulls_with_zero(df):
+        # Identificar colunas numéricas (inteiras e decimais)
+        numeric_cols = [field.name for field in df.schema.fields if isinstance(field.dataType, (IntegerType, FloatType, LongType, DoubleType))]
+
+        print(f"Colunas numéricas identificadas: {numeric_cols}")
+
+        # Contar valores nulos antes da transformação
+        null_counts_before = df.select([count(when(col(c).isNull(), c)).alias(c) for c in numeric_cols]).collect()[0].asDict()
+        print(f"Valores nulos antes da transformação: {null_counts_before}")
+
+        # Substituir valores nulos por 0 nas colunas numéricas
+        for col_name in numeric_cols:
+            df = df.withColumn(col_name, when(col(col_name).isNull(), 0).otherwise(col(col_name)))
+            print(f"Valor nulo na coluna {col_name} alterado para 0")
+
+        # Contar valores nulos depois da transformação
+        null_counts_after = df.select([count(when(col(c).isNull(), c)).alias(c) for c in numeric_cols]).collect()[0].asDict()
+        print(f"Valores nulos depois da transformação: {null_counts_after}")
+
+        # Verificar se todas as colunas tiveram seus valores nulos substituídos
+        for col_name in numeric_cols:
+            if null_counts_after[col_name] == 0:
+                print(f"✅ Coluna {col_name} foi corretamente preenchida.")
+            else:
+                print(f"⚠️ Coluna {col_name} ainda contém valores nulos!")
+
+        return df
+
+
+    def replace_nulls_with_hyphen(df):
+        # Identificar colunas numéricas (inteiras e decimais)
+        string_cols = [field.name for field in df.schema.fields if isinstance(field.dataType, (StringType))]
+
+        print(f"Colunas numéricas identificadas: {string_cols}")
+
+        # Contar valores nulos antes da transformação
+        null_counts_before = df.select([count(when(col(c).isNull(), c)).alias(c) for c in string_cols]).collect()[0].asDict()
+        print(f"Valores nulos antes da transformação: {null_counts_before}")
+
+        # Substituir valores nulos por 0 nas colunas numéricas
+        for col_name in string_cols:
+            df = df.withColumn(col_name, when(col(col_name).isNull(), '-').otherwise(col(col_name)))
+            print(f"Valor nulo na coluna {col_name} alterado para '-'")
+
+        # Contar valores nulos depois da transformação
+        null_counts_after = df.select([count(when(col(c).isNull(), c)).alias(c) for c in string_cols]).collect()[0].asDict()
+        print(f"Valores nulos depois da transformação: {null_counts_after}")
+
+        # Verificar se todas as colunas tiveram seus valores nulos substituídos
+        for col_name in string_cols:
+            if null_counts_after[col_name] == 0:
+                print(f"✅ Coluna {col_name} foi corretamente preenchida.")
+            else:
+                print(f"⚠️ Coluna {col_name} ainda contém valores nulos!")
 
         return df
 

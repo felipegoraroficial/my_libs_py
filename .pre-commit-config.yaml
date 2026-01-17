@@ -1,0 +1,39 @@
+repos:
+  - repo: local
+    hooks:
+    - id: isort # Organiza os imports em ordem alfabética e por tipo
+      name: isort local
+      entry: isort
+      language: system
+      types: [python]
+    
+    - id: black # Formata o código Python de acordo com o padrão Black
+      name: black local
+      entry: black
+      language: system
+      types: [python]
+
+    - id: mypy # Verifica tipos estáticos no código Python
+      name: mypy local
+      entry: mypy
+      language: system
+      types: [python]
+      pass_filenames: false
+      args: [app/]
+
+    - id: prospector # Analisa a qualidade do código Python que combina com (pylint, pep8, etc...)
+      name: prospector local
+      entry: prospector
+      language: system
+      types: [python]
+      pass_filenames: false
+      args: [app/]
+
+    
+    - id: pytest # Executa testes automatizados com pytest
+      name: pytest local
+      entry: pytest app/tests/
+      language: system
+      types: [python]
+      always_run: true # Garante que os testes sejam executados sempre, mesmo sem mudanças nos arquivos de teste
+      pass_filenames: false # Não passa nomes de arquivos para pytest

@@ -235,9 +235,9 @@ class reading_data:
         self, path: str, *, sample_bytes: int = 4096
     ) -> Tuple[str, str]:
 
-        self.log.info(f"Inizialazed encoding detection for file: {path}")
-
         arquivo_escolhido = self.resolve_latest_file(path)
+
+        self.log.info(f"Initialized encoding detection for file: {path}")
 
         try:
             with open(arquivo_escolhido, "rb") as f:
@@ -266,9 +266,9 @@ class reading_data:
 
     def detectar_delimitador(self, path: str) -> str:
 
-        self.log.info(f"Starting delimiter detection for file: {path}")
-
         arquivo_escolhido, encoding_detectado = self.obter_enconding(path)
+
+        self.log.info(f"Starting delimiter detection for file: {path}")
 
         try:
             with open(
@@ -389,12 +389,15 @@ class reading_data:
         id_file_based = file_format in {"csv", "txt", "json", "parquet", "delta"}
 
         if file_format in {"csv", "txt"}:
-            if path_validado.startswith(("file:", "/Volumes")):
+            if path_validado.startswith(("/Workspace", "/Volumes", "dbfs:")):
                 sep = self.detectar_delimitador(path_validado)
-                self.log.info(f"sseparator detected: {sep}")
+                self.log.info(f"separator detected: {sep}")
             else:
                 sep = ","
                 self.log.warning(f"Using default separator ',' for {path_validado}.")
+
+            if path_validado.startswith(("/Workspace")):
+                path_validado = f"file:{path_validado}"
 
             df = (
                 self.spark.read.option("header", "true")
@@ -428,9 +431,18 @@ class reading_data:
             raise ValueError(f"file format '{file_format}' not support.")
 
         if id_file_based:
-            df = df.withColumn(
-                "source_file", F.regexp_extract(F.input_file_name(), r"([^/]+)$", 1)
-            )
+            if path_validado.startswith(("/Volumes")):
+
+                df = df.withColumn(
+                    "source_file",
+                    F.regexp_extract(F.col("_metadata.file_path"), r"([^/]+)$", 1),
+                )
+
+            else:
+
+                df = df.withColumn(
+                    "source_file", F.regexp_extract(F.input_file_name(), r"([^/]+)$", 1)
+                )
 
         return df
 
@@ -463,7 +475,6 @@ class reading_data:
                 self.log.error(f"Table '{path}' does not exist in the catalog.")
                 raise ValueError(f"Table '{path}' does not exist in the catalog.")
 
-        self.log.info(f"Table {path} exists in catalog.")
         path_validado = path
 
         self.log.info(f"Reading date from: {path_validado}")

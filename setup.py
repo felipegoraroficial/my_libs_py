@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as arq:
 
 setup(
     name="my-libs-py",
-    version="0.0.11",
+    version="0.0.16",
     license="MIT",
     author="Felipe Pegoraro",
     author_email="felipepegoraro93@gmail.com",
@@ -19,7 +19,8 @@ setup(
         "delta-spark>=4.0.1",
         "loguru>=0.7.3",
         "holidays>=0.88",
-        "pandas>=2.3.2",  # só se o commons realmente usa
-        "pyarrow>=21.0.0",  # só se o commons realmente usa
+        "pandas>=2.3.2",
+        "pyarrow>=21.0.0",
+        "tqdm>=4.67.1",
     ],
 )

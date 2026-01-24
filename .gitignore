@@ -1,7 +1,7 @@
 venv
 PyPI-Recovery.txt
 dist/
-my_libs_py.egg-info/
+servify.egg-info/
 .mypy_cache
 .pytest_cache
 **/__pycache__/

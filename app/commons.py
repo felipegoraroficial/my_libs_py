@@ -3,14 +3,15 @@ from __future__ import annotations
 # Built-in
 import csv
 import glob
+import math
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional
 
 # Third-party
 import chardet
+import numpy as np
 import pandas as pd
-import pyspark.pandas as ps  # type: ignore[import-untyped]
 from py4j.protocol import Py4JError  # type: ignore[import-untyped]
 from pyspark.errors.exceptions.base import PySparkAttributeError
 from pyspark.sql import DataFrame, SparkSession
@@ -84,10 +85,11 @@ class reading_data:
     def __init__(self, spark: SparkSession):
         self.spark = spark
         self.log = Logger(spark)
+        self.commons = commons(spark)
 
-        if not hasattr(self, "_commons_initialized"):
-            self.log.info("Class Reading Dara initialized")
-            self._commons_initialized: bool = True
+        if not hasattr(self, "_reading_data_initialized"):
+            self.log.info("Class Reading Data initialized")
+            self._reading_data_initialized: bool = True
 
     @staticmethod
     def is_running_in_databricks() -> bool:
@@ -231,9 +233,7 @@ class reading_data:
         self.log.info(f"Path resolved without wildcard: {path_resolvido}")
         return path_resolvido
 
-    def obter_enconding(
-        self, path: str, *, sample_bytes: int = 4096
-    ) -> Tuple[str, str]:
+    def obter_enconding(self, path: str, *, sample_bytes: int = 4096) -> str:
 
         arquivo_escolhido = self.resolve_latest_file(path)
 
@@ -262,13 +262,15 @@ class reading_data:
             f"Encoding detection completed for file: {arquivo_escolhido} - Encoding: {encoding_detectado}"
         )
 
-        return arquivo_escolhido, encoding_detectado
+        return encoding_detectado
 
     def detectar_delimitador(self, path: str) -> str:
 
-        arquivo_escolhido, encoding_detectado = self.obter_enconding(path)
+        arquivo_escolhido = self.resolve_latest_file(path)
 
-        self.log.info(f"Starting delimiter detection for file: {path}")
+        encoding_detectado = self.obter_enconding(path)
+
+        self.log.info(f"Starting delimiter detection for file: {arquivo_escolhido}")
 
         try:
             with open(
@@ -322,7 +324,8 @@ class reading_data:
 
         self.log.info(f"Starting JSON multiline detection for file: {path}")
 
-        arquivo_escolhido, encoding_detectado = self.obter_enconding(path)
+        arquivo_escolhido = self.resolve_latest_file(path)
+        encoding_detectado = self.obter_enconding(arquivo_escolhido)
 
         try:
             with open(arquivo_escolhido, "r", encoding=encoding_detectado) as f:
@@ -388,31 +391,41 @@ class reading_data:
         """
         id_file_based = file_format in {"csv", "txt", "json", "parquet", "delta"}
 
+        if path_validado.startswith(("/Workspace")):
+            path_validado = f"file:{path_validado}"
+
         if file_format in {"csv", "txt"}:
-            if path_validado.startswith(("/Workspace", "/Volumes", "dbfs:")):
+            if path_validado.startswith(("/Volumes", "dbfs:", "file:")):
                 sep = self.detectar_delimitador(path_validado)
-                self.log.info(f"separator detected: {sep}")
+                encoding = self.obter_enconding(path_validado)
+                self.log.info(
+                    f"separator detected: {sep} | encoding detected: {encoding}"
+                )
             else:
                 sep = ","
-                self.log.warning(f"Using default separator ',' for {path_validado}.")
-
-            if path_validado.startswith(("/Workspace")):
-                path_validado = f"file:{path_validado}"
+                encoding = "utf-8"
+                self.log.warning(
+                    f"Using default separator ',' and encoding 'utf-8' for {path_validado}."
+                )
 
             df = (
                 self.spark.read.option("header", "true")
                 .option("inferSchema", "false")
                 .option("samplingRatio", 0.1)
                 .option("sep", sep)
+                .option("encoding", encoding)
                 .csv(path_validado)
             )
 
         elif file_format == "json":
-            if path_validado.startswith(("file:", "/Volumes")):
+            if path_validado.startswith(("/Volumes", "dbfs:", "file:")):
                 multiline = self.detectar_json_multiline(path_validado)
                 self.log.info(f"JSON multiline detected: {multiline}")
+                df = self.spark.read.option("multiline", str(multiline).lower()).json(
+                    path_validado
+                )
             else:
-                self.log.warning(
+                self.log.info(
                     f"Using default JSON multiline 'false' for {path_validado}."
                 )
                 df = self.spark.read.json(path_validado)
@@ -475,7 +488,8 @@ class reading_data:
                 self.log.error(f"Table '{path}' does not exist in the catalog.")
                 raise ValueError(f"Table '{path}' does not exist in the catalog.")
 
-        path_validado = path
+            path_validado = path
+            self.log.info(f"Table '{path}' exists in the catalog.")
 
         self.log.info(f"Reading date from: {path_validado}")
 
@@ -517,95 +531,108 @@ class reading_data:
 
         self.log.info(f"Listing .xlsx files in directory: {dir_path}")
 
-        paths = [
-            os.path.join(dir_path, nome)
-            for nome in os.listdir(dir_path)
-            if nome.lower().endswith(".xlsx")
-        ]
+        if os.path.isfile(dir_path):
+            if dir_path.lower().endswith(".xlsx"):
+                self.log.info(f"Single .xlsx file found: {dir_path}")
+                return [dir_path]
 
-        if not paths:
-            self.log.warning(f"No .xlsx files found in directory: {dir_path}")
-            raise FileNotFoundError(f"No .xlsx files found in directory: {dir_path}")
+            self.log.error(f"The specified path is a file but not .xlsx: {dir_path}")
+            raise ValueError(f"The specified path is a file but not .xlsx: {dir_path}")
 
-        self.log.info(f"Found {len(paths)} .xlsx files in directory: {dir_path}")
-        return paths
+        if os.path.isdir(dir_path):
+            paths = [
+                os.path.join(dir_path, nome)
+                for nome in os.listdir(dir_path)
+                if nome.lower().endswith(".xlsx")
+            ]
+            if not paths:
+                self.log.error(f"No .xlsx files found in directory: {dir_path}")
+                raise FileNotFoundError(
+                    f"No .xlsx files found in directory: {dir_path}"
+                )
 
-    def ensure_ps_df(self, obj: Any) -> ps.DataFrame:
-        """
-        Garante que o objeto é um DataFrame do Pandas on Spark API.
-        """
+            self.log.info(f"Found {len(paths)} .xlsx files in directory: {dir_path}")
+            return paths
 
-        if not isinstance(obj, dict):
-            frames: List[ps.DataFrame] = [self.ensure_ps_df(v) for v in obj.values()]
-            concat_arg: List[ps.DataFrame | ps.Series] = cast(
-                List[ps.DataFrame | ps.Series], frames
-            )
+        self.log.error(
+            f"The specified path is neither a file nor a directory: {dir_path}"
+        )
+        raise ValueError(
+            f"The specified path is neither a file nor a directory: {dir_path}"
+        )
 
-            return cast(ps.DataFrame, ps.concat(concat_arg, ignore_index=True))
+    def saniteze_columns(
+        self, header_cells: List, prefer_from_schema: Optional[T.StructType] = None
+    ) -> List[str]:
 
-        if isinstance(obj, ps.Series):
-            return obj.to_frame()
+        target_names: List[str] = (
+            [f.name for f in prefer_from_schema] if prefer_from_schema else []
+        )
 
-        if hasattr(obj, "to_series") and not isinstance(obj, ps.DataFrame):
-            return obj.to_series().to_frame()
-        return cast(ps.DataFrame, obj)
+        seen = set()
+        safe_cols = []
 
-    def concat_ps_dfs(self, dfs: List[ps.DataFrame]) -> ps.DataFrame:
+        def is_blank(x):
+            if x is None:
+                return True
+            try:
+                if isinstance(x, float) and math.isnan(x):
+                    return True
+            except Exception:
+                pass
+            s = str(x).strip()
+            return s == "" or s.lower() == "nan"
+
+        for i, h in enumerate(header_cells):
+            if is_blank(h):
+                if target_names and i < len(target_names):
+                    base = target_names[i]
+                else:
+                    base = f"c_{i+1}"
+            else:
+                base = str(h).replace("\n", " ").replace("\r", " ").strip()
+
+            base = re.sub(r"\s+", "_", base)
+            base = re.sub(r"[^0-9a-zA-Z_]", "", base)
+
+            if base[0].isdigit():
+                base = f"c_{base}"
+
+            name = base
+            k = 1
+            while name in seen:
+                name = f"{base}__{k}"
+                k += 1
+            seen.add(name)
+            safe_cols.append(name)
+
+        return safe_cols
+
+    def concat_ps_dfs(self, lista_files: List[str], schema: T.StructType) -> DataFrame:
         """
         Concatena uma lista de DataFrames do Pandas on Spark API.
         """
 
-        self.log.info(f"Concatenating {len(dfs)} Pandas on Spark DataFrames")
-
-        if not dfs:
+        if not lista_files:
             self.log.warning("No DataFrames provided for concatenation.")
             raise ValueError("No DataFrames provided for concatenation.")
 
-        if len(dfs) == 1:
+        if len(lista_files) == 1:
             self.log.info("Only one DataFrame provided, returning it directly.")
-            return dfs[0]
+            return self.read_xlsx_with_pandas(lista_files[0], schema=schema)
 
-        concat_arg: List[ps.DataFrame | ps.Series] = cast(
-            List[ps.DataFrame | ps.Series], dfs
-        )
+        self.log.info(f"Concatenating {len(lista_files)} Pandas on Spark DataFrames")
+
+        df_final = self.read_xlsx_with_pandas(lista_files[0], schema=schema)
+        self.log.info(f"file: {lista_files[0]} read successfully.")
+
+        for file in lista_files[1:]:
+            df = self.read_xlsx_with_pandas(file, schema=schema)
+            df_final = df_final.unionByName(df, allowMissingColumns=True)
+            self.log.info(f"file: {file} read and concatenated successfully.")
 
         self.log.info("DataFrames concatenated successfully.")
-        return cast(ps.DataFrame, ps.concat(concat_arg, ignore_index=True))
-
-    def to_spark_with_schema(
-        self, df_union: ps.DataFrame, schema: T.StructType
-    ) -> DataFrame:
-        """
-        Converte um DataFrame do Pandas on Spark API para um DataFrame do Spark com o schema especificado.
-        """
-
-        if not schema:
-            self.log.error("Schema must be provided for conversion.")
-            raise ValueError("Schema must be provided for conversion.")
-
-        if not isinstance(schema, T.StructType):
-            self.log.error("Provided schema is not a valid StructType.")
-            raise ValueError("Provided schema is not a valid StructType.")
-
-        self.log.info(
-            "Converting Pandas on Spark DataFrame to Spark DataFrame with specified schema"
-        )
-
-        try:
-            spark_df_com_schema = self.spark.createDataFrame(
-                df_union.to_pandas(), schema=schema
-            )
-            self.log.info(
-                "Conversion to Spark DataFrame with specified schema completed"
-            )
-            return spark_df_com_schema
-        except Exception as e:
-            self.log.error(
-                f"Error converting to Spark DataFrame with specified schema: {e}"
-            )
-            raise ValueError(
-                f"Error converting to Spark DataFrame with specified schema: {e}"
-            ) from e
+        return df_final
 
     def remove_header_rows(self, spark_df: DataFrame) -> DataFrame:
         """
@@ -641,70 +668,127 @@ class reading_data:
         self.log.info("No header rows detected, returning original DataFrame")
         return spark_df
 
-    def read_xlsx_to_ps_df(self, xlsx_path: str) -> ps.DataFrame:
+    def read_xlsx_with_pandas(self, xlsx_path: str, schema: T.StructType, sheet_name=0):
         """
         Lê um arquivo .xlsx em um DataFrame do Pandas on Spark API.
         """
 
-        self.log.info(f"Reading .xlsx file: {xlsx_path} by API spark.pandas")
+        self.log.info(f"Reading .xlsx file: {xlsx_path} by pandas")
 
         try:
-            ps_obj = ps.read_excel(
+            df = pd.read_excel(
                 xlsx_path,
                 engine="openpyxl",
                 header=0,
-                sheet_name=0,
+                sheet_name=sheet_name,
             )
-            ps_df = self.ensure_ps_df(ps_obj)
-            self.log.info(f".xlsx file read successfully: {xlsx_path}")
+
+            valid_mask = df.notna().any(axis=1)
+            if not bool(valid_mask.all()):
+                self.log.warning(f"All rows are empty in .xlsx file: {xlsx_path}")
+                raise ValueError(f"All rows are empty in .xlsx file: {xlsx_path}")
+
+            first_valid_pos = int(np.argmax(valid_mask.to_numpy()))
 
         except Exception as e:
-            self.log.warning(
-                f"Error reading .xlsx file {xlsx_path} by API spark.pandas: {e}"
+            self.log.warning(f"Error reading .xlsx file {xlsx_path} by pandas: {e}")
+
+        header_raw = df.iloc[first_valid_pos].tolist()
+        safe_cols = self.saniteze_columns(header_raw, prefer_from_schema=schema)
+
+        df = df.dropna(how="all").reset_index(drop=True)
+
+        for c in range(len(safe_cols)):
+            col = df.columns[c]
+
+            df[col] = (
+                df[col]
+                .where(~df[col].isna(), None)
+                .map(lambda x: str(x) if x is not None else None)
             )
 
-            self.log.info(f"Trying to read .xlsx file {xlsx_path} by pandas")
+        df.columns = safe_cols
 
-            try:
-                pd_df = pd.read_excel(
-                    xlsx_path,
-                    engine="openpyxl",
-                    header=0,
-                    sheet_name=0,
-                    dtype=str,
-                )
-                ps_df = self.ensure_ps_df(ps.from_pandas(pd_df))
-                self.log.info(f".xlsx file read successfully by pandas: {xlsx_path}")
-            except Exception as ex:
-                self.log.error(f"Error reading .xlsx file {xlsx_path} by pandas: {ex}")
-                raise ValueError(f"Error reading .xlsx file {xlsx_path}: {ex}") from ex
+        prev_arrow_raw = self.spark.conf.get(
+            "spark.sql.execution.arrow.pyspark.enabled", "true"
+        )
 
-        ps_df = ps_df.astype("string").assign(source_file=os.path.basename(xlsx_path))
+        prev_arrow = "true" if str(prev_arrow_raw).lower() == "true" else "false"
 
-        return ps_df
+        prev_arrow_raw = self.spark.conf.get(
+            "spark.sql.execution.arrow.pyspark.enabled", "false"
+        )
+
+        try:
+            sdf = self.spark.createDataFrame(df)
+        finally:
+            self.spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", prev_arrow)
+
+        sdf = sdf.select([F.col(c).cast("string").alias(c) for c in sdf.columns])
+
+        sdf = sdf.withColumn("source_file", F.lit(os.path.basename(xlsx_path)))
+
+        sdf = self.commons.aplicar_schema_df(sdf, schema)
+
+        sdf = self.remove_header_rows(sdf)
+
+        return sdf
 
     def read_xlsx(self, dir_path: str, schema: T.StructType) -> DataFrame:
         """
         Lê todos os arquivos .xlsx em um diretório e retorna um DataFrame do Spark com o schema especificado.
         """
 
-        self.log.info(f"Reading all .xlsx files in directory: {dir_path}")
-
-        self.spark.conf.set("spark.sql.amsi.enabled", "false")
-        self.log.debug("Disabled AMSI for reading .xlsx files")
+        self.log.info(f"Reading .xlsx file in directory: {dir_path}")
 
         paths = self.list_xslx_paths(dir_path)
 
-        dfs: List[ps.DataFrame] = [self.read_xlsx_to_ps_df(p) for p in paths]
-
-        df_union: ps.DateFrame = self.concat_ps_dfs(dfs)
-
-        spark_df: DataFrame = self.to_spark_with_schema(df_union, schema)
-
-        spark_df_cleaned: DataFrame = self.remove_header_rows(spark_df)
+        df = self.concat_ps_dfs(paths, schema)
 
         self.log.info(
             f"All .xlsx files read and combined successfully from directory: {dir_path}"
         )
 
-        return spark_df_cleaned
+        return df
+
+
+class commons:
+
+    def __init__(self, spark: SparkSession):
+        self.spark = spark
+        self.log = Logger(spark)
+
+        if not hasattr(self, "_commons_initialized"):
+            self.log.info("Class Reading Dara initialized")
+            self._commons_initialized: bool = True
+
+    def aplicar_schema_df(self, df: DataFrame, schema: T.StructType) -> DataFrame:
+        """
+        Aplica um schema especificado a um DataFrame do Spark.
+        """
+
+        self.log.info("Applying schema to DataFrame")
+
+        if df is None:
+            self.log.error("Input DataFrame is None")
+            raise ValueError("Input DataFrame is None")
+
+        if not schema.fields:
+            self.log.warning("Provided schema is empty, returning original DataFrame")
+            return df
+
+        try:
+
+            df_temp = df.toDF(*[f.name for f in schema.fields])
+
+            for field in schema.fields:
+                df_temp = df_temp.withColumn(
+                    field.name, F.col(field.name).cast(field.dataType)
+                )
+
+            self.log.info("Schema applied successfully")
+            return df_temp
+
+        except Exception as e:
+            self.log.error(f"Error applying schema: {e}")
+            raise ValueError(f"Error applying schema: {e}") from e

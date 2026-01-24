@@ -4,8 +4,8 @@ with open("README.md", "r", encoding="utf-8") as arq:
     readme = arq.read()
 
 setup(
-    name="my-libs-py",
-    version="0.0.16",
+    name="servify",
+    version="0.0.2",
     license="MIT",
     author="Felipe Pegoraro",
     author_email="felipepegoraro93@gmail.com",
@@ -13,7 +13,7 @@ setup(
     long_description=readme,
     long_description_content_type="text/markdown",
     keywords="spark pyspark utils commons",
-    packages=find_packages(include=["my_libs", "app", "app.*"]),
+    packages=find_packages(include=["servify", "servify.*"]),
     install_requires=[
         "pyspark>=4.0.0",
         "delta-spark>=4.0.1",

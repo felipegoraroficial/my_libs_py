@@ -85,7 +85,7 @@ class reading_data:
     def __init__(self, spark: SparkSession):
         self.spark = spark
         self.log = Logger(spark)
-        self.commons = commons(spark)
+        self.dataservy = dataservy(spark)
 
         if not hasattr(self, "_reading_data_initialized"):
             self.log.info("Class Reading Data initialized")
@@ -692,6 +692,7 @@ class reading_data:
 
         except Exception as e:
             self.log.warning(f"Error reading .xlsx file {xlsx_path} by pandas: {e}")
+            raise
 
         header_raw = df.iloc[first_valid_pos].tolist()
         safe_cols = self.saniteze_columns(header_raw, prefer_from_schema=schema)
@@ -700,7 +701,6 @@ class reading_data:
 
         for c in range(len(safe_cols)):
             col = df.columns[c]
-
             df[col] = (
                 df[col]
                 .where(~df[col].isna(), None)
@@ -709,26 +709,29 @@ class reading_data:
 
         df.columns = safe_cols
 
-        prev_arrow_raw = self.spark.conf.get(
-            "spark.sql.execution.arrow.pyspark.enabled", "true"
+        self.log.info(
+            "Using safe conversion mode to avoid internal Serverless Arrow errors."
         )
 
-        prev_arrow = "true" if str(prev_arrow_raw).lower() == "true" else "false"
-
-        prev_arrow_raw = self.spark.conf.get(
-            "spark.sql.execution.arrow.pyspark.enabled", "false"
+        string_schema = T.StructType(
+            [T.StructField(c, T.StringType(), True) for c in df.columns]
         )
 
         try:
-            sdf = self.spark.createDataFrame(df)
-        finally:
-            self.spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", prev_arrow)
+            sdf = self.spark.createDataFrame(df, schema=string_schema)
+
+        except Exception as e:
+            self.log.error(
+                "Spark Serverless failed to create DataFrame even in safe mode."
+            )
+            self.log.debug(f"Internal Spark error: {e}")
+            raise
 
         sdf = sdf.select([F.col(c).cast("string").alias(c) for c in sdf.columns])
 
         sdf = sdf.withColumn("source_file", F.lit(os.path.basename(xlsx_path)))
 
-        sdf = self.commons.aplicar_schema_df(sdf, schema)
+        sdf = self.dataservy.aplicar_schema_df(sdf, schema)
 
         sdf = self.remove_header_rows(sdf)
 
@@ -752,15 +755,15 @@ class reading_data:
         return df
 
 
-class commons:
+class dataservy:
 
     def __init__(self, spark: SparkSession):
         self.spark = spark
         self.log = Logger(spark)
 
-        if not hasattr(self, "_commons_initialized"):
-            self.log.info("Class Reading Dara initialized")
-            self._commons_initialized: bool = True
+        if not hasattr(self, "_dataservy_initialized"):
+            self.log.info("Class dataservy initialized")
+            self._dataservy_initialized: bool = True
 
     def aplicar_schema_df(self, df: DataFrame, schema: T.StructType) -> DataFrame:
         """

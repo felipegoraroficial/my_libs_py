@@ -5,14 +5,14 @@ with open("README.md", "r", encoding="utf-8") as arq:
 
 setup(
     name="servify",
-    version="0.0.11",
+    version="0.0.12",
     license="MIT",
     author="Felipe Pegoraro",
     author_email="felipepegoraro93@gmail.com",
-    description="Commons utilitários para projetos Spark",
+    description="A Python library that simplifies data manipulation and workflow development with PySpark in Databricks environments.",
     long_description=readme,
     long_description_content_type="text/markdown",
-    keywords="spark pyspark utils commons",
+    keywords="databricks spark pyspark",
     packages=find_packages(),
     install_requires=[
         "pyspark>=4.0.0",

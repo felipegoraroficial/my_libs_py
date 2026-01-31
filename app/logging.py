@@ -9,7 +9,7 @@ from pyspark.sql import Row
 from pyspark.sql import SparkSession as GenericSparkSession
 from tqdm import tqdm
 
-from app.settings import Settings
+from app.paths import EstaticPath
 
 
 class LogLevel(Enum):
@@ -44,7 +44,7 @@ class Logger:
         self._set_timezone()
         self._configure_logger()
 
-        default_paths = [Settings.monitor_log]
+        default_paths = [EstaticPath.monitor_log]
 
         if spark_log_path is None:
             self.spark_log_path = default_paths

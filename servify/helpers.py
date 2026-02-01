@@ -63,7 +63,7 @@ class helper_reading_data:
 
         effective_log = LOG_ENABLED if self._log_enabled is None else self._log_enabled
 
-        if self._log is None or self._log.global_enabled != effective_log:
+        if self._log is None or self._log.show_logs != effective_log:
             self._log = Logger(self.spark, show_logs=effective_log)
 
         return self._log

@@ -56,7 +56,7 @@ class servify_read:
         # pylint: disable=import-outside-toplevel
         from servify.servify_configs import LOG_ENABLED
 
-        if self._log is None or self._log.global_enabled != LOG_ENABLED:
+        if self._log is None or self._log.show_logs != LOG_ENABLED:
             self._log = Logger(self.spark, show_logs=LOG_ENABLED)
 
         return self._log
@@ -66,7 +66,7 @@ class servify_read:
         # pylint: disable=import-outside-toplevel
         from servify.servify_configs import LOG_ENABLED
 
-        if self._helper is None or self._helper.log.global_enabled != LOG_ENABLED:
+        if self._helper is None or self._helper.log.show_logs != LOG_ENABLED:
             self._helper = HelperReadingData(self.spark, log_enabled=LOG_ENABLED)
 
         return self._helper

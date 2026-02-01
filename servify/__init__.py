@@ -1,10 +1,6 @@
 from pyspark.sql import DataFrame
 
 from .commons import servify_read
-from .spark_logging import disable_spark_logs
-
-# Agora sim: código executável só depois dos imports
-disable_spark_logs()
 
 _reader: servify_read | None = None
 _last_log_state: bool | None = None

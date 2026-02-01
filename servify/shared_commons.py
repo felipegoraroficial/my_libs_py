@@ -6,7 +6,7 @@ from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
 # Local
-from app.logging import Logger
+from servify.logging import Logger
 
 __all__ = [
     "ConfigError",
@@ -32,11 +32,20 @@ class commons_shared:
 
     def __init__(self, spark: SparkSession):
         self.spark = spark
-        self.log = Logger(spark)
+        self._log = None
 
         if not hasattr(self, "_commons_shared_initialized"):
-            self.log.info("Class commons_shared initialized")
-            self._commons_shared_initialized: bool = True
+            self._commons_shared_initialized = True
+
+    @property
+    def log(self):
+        # pylint: disable=import-outside-toplevel
+        from servify.servify_configs import LOG_ENABLED
+
+        if self._log is None or self._log.global_enabled != LOG_ENABLED:
+            self._log = Logger(self.spark, show_logs=LOG_ENABLED)
+
+        return self._log
 
     def aplicar_schema_df(self, df: DataFrame, schema: T.StructType) -> DataFrame:
         """

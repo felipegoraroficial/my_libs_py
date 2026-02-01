@@ -9,7 +9,7 @@ from pyspark.sql import Row
 from pyspark.sql import SparkSession as GenericSparkSession
 from tqdm import tqdm
 
-from app.paths import EstaticPath
+from servify.paths import EstaticPath
 
 
 class LogLevel(Enum):
@@ -36,10 +36,12 @@ class Logger:
         spark: GenericSparkSession,
         timezone: str = "America/Sao_Paulo",
         spark_log_path: Optional[Union[str, Sequence[str]]] = None,
+        show_logs: bool = True,
     ):
 
         self.spark = spark
         self.timezone = timezone
+        self.show_logs = show_logs
         self.base_format = "{time:YYYY-MM-DD HH:mm:ss.SSS} [{level}]  {module}.{function}:{line} - {message}"
         self._set_timezone()
         self._configure_logger()
@@ -67,9 +69,13 @@ class Logger:
         return f"{level_color}" + self.base_format + f"{LogLevel.RESET.value}"
 
     def _log_sink(self, message):
+        # pylint: disable=import-outside-toplevel
+        from servify.servify_configs import LOG_ENABLED
 
         record = message.record
-        tqdm.write(str(message), end="\n")
+
+        if LOG_ENABLED and self.show_logs:
+            tqdm.write(str(message), end="\n")
 
         try:
             self._persist_log_spark(record)

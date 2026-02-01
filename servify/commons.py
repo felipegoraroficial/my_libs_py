@@ -4,14 +4,14 @@ from __future__ import annotations
 from typing import Optional
 
 # Third-party
-from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
 # Local
-from app.helpers import helper_reading_data
-from app.logging import Logger
-from app.settings import EnvSparkSettings
+from servify.helpers import helper_reading_data as HelperReadingData
+from servify.logging import Logger
+from servify.settings import EnvSparkSettings
 
 __all__ = [
     "ConfigError",
@@ -35,15 +35,41 @@ class IoError(Exception):
 
 class servify_read:
 
-    def __init__(self, spark: SparkSession):
-        self.spark = spark
-        self.log = Logger(spark)
-        self.settings = EnvSparkSettings(spark)
-        self.helper_reading_data = helper_reading_data(spark)
+    def __init__(self, spark=None, log_enabled: bool | None = None):
+        self.spark = spark or EnvSparkSettings.get_or_create_spark(app_name="servify")
+
+        # pylint: disable=import-outside-toplevel
+        from servify.servify_configs import LOG_ENABLED
+
+        self._effective_log = LOG_ENABLED if log_enabled is None else log_enabled
+
+        self._log = None
+        self._helper = None
+
+        self.settings = EnvSparkSettings(self.spark)
 
         if not hasattr(self, "_reading_data_initialized"):
-            self.log.info("Class Reading Data initialized")
-            self._reading_data_initialized: bool = True
+            self._reading_data_initialized = True
+
+    @property
+    def log(self):
+        # pylint: disable=import-outside-toplevel
+        from servify.servify_configs import LOG_ENABLED
+
+        if self._log is None or self._log.global_enabled != LOG_ENABLED:
+            self._log = Logger(self.spark, show_logs=LOG_ENABLED)
+
+        return self._log
+
+    @property
+    def helper_reading_data(self):
+        # pylint: disable=import-outside-toplevel
+        from servify.servify_configs import LOG_ENABLED
+
+        if self._helper is None or self._helper.log.global_enabled != LOG_ENABLED:
+            self._helper = HelperReadingData(self.spark, log_enabled=LOG_ENABLED)
+
+        return self._helper
 
     def read_data(
         self, path: str, file_format: str, partition_column: Optional[str] = None

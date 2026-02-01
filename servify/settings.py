@@ -9,9 +9,6 @@ from py4j.protocol import Py4JError  # type: ignore[import-untyped]
 from pyspark.errors.exceptions.base import PySparkAttributeError
 from pyspark.sql import SparkSession
 
-# Local
-from app.logging import Logger
-
 # Nem sempre existe 'py4j.security'. Para satisfazer mypy/pylint e manter o runtime:
 Py4JSecurityException = Exception  # alias seguro para captura em ambientes com Py4J
 
@@ -49,11 +46,9 @@ class EnvSparkSettings:
 
     def __init__(self, spark: SparkSession):
         self.spark = spark
-        self.log = Logger(spark)
 
         if not hasattr(self, "_env_spark_settings_initialized"):
-            self.log.info("Class EnvSparkSettings initialized")
-            self._env_spark_settings_initialized: bool = True
+            self._env_spark_settings_initialized = True
 
     @staticmethod
     def get_dbutils(spark: Any) -> Optional[Any]:

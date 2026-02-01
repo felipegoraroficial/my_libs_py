@@ -19,7 +19,7 @@ repos:
       language: system
       types: [python]
       pass_filenames: false
-      args: [app/]
+      args: [servify/]
 
     - id: prospector # Analisa a qualidade do código Python que combina com (pylint, pep8, etc...)
       name: prospector local
@@ -27,12 +27,12 @@ repos:
       language: system
       types: [python]
       pass_filenames: false
-      args: [app/]
+      args: [servify/]
 
     
     - id: pytest # Executa testes automatizados com pytest
       name: pytest local
-      entry: pytest app/tests/
+      entry: pytest servify/tests/
       language: system
       types: [python]
       always_run: true # Garante que os testes sejam executados sempre, mesmo sem mudanças nos arquivos de teste

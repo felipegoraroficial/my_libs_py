@@ -17,9 +17,9 @@ from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
 # Local
-from app.logging import Logger
-from app.settings import EnvSparkSettings
-from app.shared_commons import commons_shared
+from servify.logging import Logger
+from servify.settings import EnvSparkSettings
+from servify.shared_commons import commons_shared
 
 __all__ = [
     "ConfigError",
@@ -43,15 +43,30 @@ class IoError(Exception):
 
 class helper_reading_data:
 
-    def __init__(self, spark: SparkSession):
+    def __init__(self, spark: SparkSession, log_enabled: bool = True):
         self.spark = spark
-        self.log = Logger(spark)
+        self._log_enabled = log_enabled
+
+        # Lazy logger
+        self._log = None
+
         self.settings = EnvSparkSettings(spark)
         self.commons_shared = commons_shared(spark)
 
         if not hasattr(self, "_reading_data_initialized"):
-            self.log.info("Class Reading Data initialized")
-            self._reading_data_initialized: bool = True
+            self._reading_data_initialized = True
+
+    @property
+    def log(self):
+        # pylint: disable=import-outside-toplevel
+        from servify.servify_configs import LOG_ENABLED
+
+        effective_log = LOG_ENABLED if self._log_enabled is None else self._log_enabled
+
+        if self._log is None or self._log.global_enabled != effective_log:
+            self._log = Logger(self.spark, show_logs=effective_log)
+
+        return self._log
 
     def resolve_latest_file(self, path: str) -> str:
 

@@ -406,7 +406,9 @@ class helper_reading_data:
 
         return safe_cols
 
-    def concat_ps_dfs(self, lista_files: List[str], schema: T.StructType) -> DataFrame:
+    def concat_ps_dfs(
+        self, lista_files: List[str], schema: Optional[T.StructType] = None
+    ) -> DataFrame:
         """
         Concatena uma lista de DataFrames do Pandas on Spark API.
         """
@@ -466,7 +468,9 @@ class helper_reading_data:
         self.log.info("No header rows detected, returning original DataFrame")
         return spark_df
 
-    def read_xlsx_with_pandas(self, xlsx_path: str, schema: T.StructType, sheet_name=0):
+    def read_xlsx_with_pandas(
+        self, xlsx_path: str, schema: Optional[T.StructType] = None, sheet_name: int = 0
+    ):
         """
         Lê um arquivo .xlsx em um DataFrame do Pandas on Spark API.
         """
@@ -505,27 +509,39 @@ class helper_reading_data:
                 .map(lambda x: str(x) if x is not None else None)
             )
 
-        df.columns = safe_cols
+        if schema is None:
+            df.columns = safe_cols
 
-        self.log.info(
-            "Using safe conversion mode to avoid internal Serverless Arrow errors."
-        )
+            self.log.info(
+                "Using safe conversion mode to avoid internal Serverless Arrow errors."
+            )
+
+            string_schema = T.StructType(
+                [T.StructField(c, T.StringType(), True) for c in df.columns]
+            )
+
+            try:
+                sdf = self.spark.createDataFrame(df, schema=string_schema)
+            except Exception as e:
+                self.log.error(
+                    "Spark Serverless failed to create DataFrame even in safe mode."
+                )
+                self.log.debug(f"Internal Spark error: {e}")
+                raise
+
+            sdf = sdf.select([F.col(c).cast("string").alias(c) for c in sdf.columns])
+            sdf = sdf.withColumn("source_file", F.lit(os.path.basename(xlsx_path)))
+            sdf = self.remove_header_rows(sdf)
+
+            return sdf
+
+        df.columns = safe_cols
 
         string_schema = T.StructType(
             [T.StructField(c, T.StringType(), True) for c in df.columns]
         )
 
-        try:
-            sdf = self.spark.createDataFrame(df, schema=string_schema)
-
-        except Exception as e:
-            self.log.error(
-                "Spark Serverless failed to create DataFrame even in safe mode."
-            )
-            self.log.debug(f"Internal Spark error: {e}")
-            raise
-
-        sdf = sdf.select([F.col(c).cast("string").alias(c) for c in sdf.columns])
+        sdf = self.spark.createDataFrame(df, schema=string_schema)
 
         sdf = sdf.withColumn("source_file", F.lit(os.path.basename(xlsx_path)))
 

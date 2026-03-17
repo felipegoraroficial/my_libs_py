@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-# Built-in
 from typing import Optional
 
 # Third-party
@@ -12,6 +11,9 @@ from pyspark.sql import types as T
 from servify.helpers import helper_reading_data as HelperReadingData
 from servify.logging import Logger
 from servify.settings import EnvSparkSettings
+
+# Built-in
+
 
 __all__ = [
     "ConfigError",
@@ -72,13 +74,17 @@ class servify_read:
         return self._helper
 
     def read_data(
-        self, path: str, file_format: str, partition_column: Optional[str] = None
+        self,
+        path: str,
+        file_format: str,
+        partition_column: Optional[str] = None,
+        schema: Optional[T.StructType] = None,
     ) -> DataFrame:
         """
         Lê dados de um path especificado, detectando encoding, delimitador e JSON multiline quando aplicável.
         """
 
-        formatos_validos = {"csv", "txt", "json", "parquet", "delta", "table"}
+        formatos_validos = {"xlsx", "csv", "txt", "json", "parquet", "delta", "table"}
 
         if file_format not in formatos_validos:
             self.log.error(f"file format '{file_format}' not support.")
@@ -92,6 +98,20 @@ class servify_read:
             self.log.debug("No partition column specified.")
 
         dbutils = self.settings.require_dbutils(self.spark)
+
+        if file_format == "xlsx":
+
+            self.log.info(f"Reading .xlsx file in directory: {path}")
+
+            paths = self.helper_reading_data.list_xslx_paths(path)
+
+            df = self.helper_reading_data.concat_ps_dfs(paths, schema)
+
+            self.log.info(
+                f"All .xlsx files read and combined successfully from directory: {path}"
+            )
+
+            return df
 
         if file_format in {"csv", "txt", "json", "parquet", "delta"}:
             path_validado = self.helper_reading_data.resolve_accessible_path(
@@ -136,22 +156,5 @@ class servify_read:
             )
 
         self.log.info(f"Data read completed for path: {path_validado}")
-
-        return df
-
-    def read_xlsx(self, dir_path: str, schema: T.StructType) -> DataFrame:
-        """
-        Lê todos os arquivos .xlsx em um diretório e retorna um DataFrame do Spark com o schema especificado.
-        """
-
-        self.log.info(f"Reading .xlsx file in directory: {dir_path}")
-
-        paths = self.helper_reading_data.list_xslx_paths(dir_path)
-
-        df = self.helper_reading_data.concat_ps_dfs(paths, schema)
-
-        self.log.info(
-            f"All .xlsx files read and combined successfully from directory: {dir_path}"
-        )
 
         return df

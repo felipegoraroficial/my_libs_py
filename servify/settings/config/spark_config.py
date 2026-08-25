@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-# Built-in
+# Built-inimport os
 import os
 from typing import Any, Dict, Optional
 
@@ -9,9 +9,10 @@ from py4j.protocol import Py4JError  # type: ignore[import-untyped]
 from pyspark.errors.exceptions.base import PySparkAttributeError
 from pyspark.sql import SparkSession
 
+from .exceptions import ConfigError
+
 # Nem sempre existe 'py4j.security'. Para satisfazer mypy/pylint e manter o runtime:
 Py4JSecurityException = Exception  # alias seguro para captura em ambientes com Py4J
-
 
 # Importar DBUtils de 'pyspark.dbutils' quando disponivel
 # Em ambiente fora do Databricks, esse importe pode falhar.
@@ -23,58 +24,17 @@ except Exception:  # pragma: no cover
     DBUtils = None  # type: ignore
 
 __all__ = [
-    "ConfigError",
-    "DataValidationError",
-    "IoError",
-    "EnvSparkSettings",
+    "SparkConfig",
 ]
 
 
-class ConfigError(Exception):
-    """Exceção para erros de configuração."""
-
-
-class DataValidationError(Exception):
-    """Exceção para erros de validação de dados."""
-
-
-class IoError(Exception):
-    """Exceção para erros de entrada/saída."""
-
-
-class EnvSparkSettings:
+class SparkConfig:
 
     def __init__(self, spark: SparkSession):
         self.spark = spark
 
         if not hasattr(self, "_env_spark_settings_initialized"):
             self._env_spark_settings_initialized = True
-
-    @staticmethod
-    def get_dbutils(spark: Any) -> Optional[Any]:
-        """
-        Obtem uma instancia de 'dbutils' de forma robusta para uso em Databricks
-        ou ambientes compativeis.
-        """
-
-        injected = globals().get("dbutils")
-        if injected is not None:
-            return injected
-
-        if DBUtils is not None:
-            return DBUtils(spark)
-
-        return None
-
-    @staticmethod
-    def require_dbutils(spark: Any) -> Any:
-
-        dbutils = EnvSparkSettings.get_dbutils(spark)
-        if dbutils is None:
-            raise ConfigError(
-                "dbutils is not available: neither injected nor via dbutils(spark)"
-            )
-        return dbutils
 
     @staticmethod
     def is_running_in_databricks() -> bool:
@@ -112,7 +72,7 @@ class EnvSparkSettings:
         Obtem a SparkSession ativa ou cria uma nova sessão Spark.
         """
 
-        if EnvSparkSettings.is_running_in_databricks():
+        if SparkConfig.is_running_in_databricks():
             spark = (
                 SparkSession.getActiveSession() or SparkSession.builder.getOrCreate()
             )
@@ -152,7 +112,7 @@ class EnvSparkSettings:
             "spark.sql.session.timeZone": os.getenv("SPARK_SQL_TIMEZONE", "UTC"),
             "spark.sql.adaptive.enabled": "true",
             "spark.sql.shuffle.partitions": os.getenv(
-                "SPARK_SQL_SHUFFLE_PARTITIONS", "200"
+                "SPARK_SQL_SHUFFLE_PARTITIONS", "16"
             ),
         }
 
@@ -189,3 +149,123 @@ class EnvSparkSettings:
                 "Verify Java/Scala/Spark are already installed"
                 f"Error: {exc}"
             ) from exc
+
+    @staticmethod
+    def get_dbutils(spark: Any) -> Optional[Any]:
+        """
+        Obtem uma instancia de 'dbutils' de forma robusta para uso em Databricks
+        ou ambientes compativeis.
+        """
+
+        injected = globals().get("dbutils")
+        if injected is not None:
+            return injected
+
+        if DBUtils is not None:
+            return DBUtils(spark)
+
+        return None
+
+    @staticmethod
+    def require_dbutils(spark: Any) -> Any:
+
+        dbutils = SparkConfig.get_dbutils(spark)
+        if dbutils is None:
+            raise ConfigError(
+                "dbutils is not available: neither injected nor via dbutils(spark)"
+            )
+        return dbutils
+
+    @staticmethod
+    def apply_performance_defaults(
+        spark: SparkSession,
+        *,
+        shuffle_partitions: int = 200,
+        broadcast_threshold_mb: int = 128,
+        enable_auto_optimeze: bool = True,
+        enable_delta_optimeze: bool = True,
+    ) -> None:
+
+        from .flags import LOG_ENABLED
+
+        confs = {
+            "spark.sql.adaptive.enabled": "true",
+            "spark.sql.adaptive.coalescePartitions.enabled": "true",
+            "spark.sql.adaptive.skewJoin.enabled": "true",
+            "spark.sql.shuffle.partitions": str(shuffle_partitions),
+            "spark.sql.autoBroadcastJoinThreshold": str(
+                broadcast_threshold_mb * 1024 * 1024
+            ),
+            "spark.sql.parquet.filterPushdown": "true",
+            "spark.sql.parquet.mergeSchema": "false",
+            "spark.sql.file.ignoreCorruptFiles": "true",
+            "spark.databricks.delta.schema.autoMerge.enabled": "true",
+        }
+
+        if enable_delta_optimeze:
+            confs.update(
+                {
+                    "spark.databricks.delta.optimizeWrite.enabled": "true",
+                    "spark.databricks.delta.autoCompact.enabled": "true",
+                }
+            )
+
+        if enable_auto_optimeze:
+            confs.update(
+                {
+                    (
+                        "spark.databricks.delta.properties.defaults.autoOptimize.optimizeWrite"
+                    ): "true",
+                    (
+                        "spark.databricks.delta.properties.defaults.autoOptimize.autoCompact"
+                    ): "true",
+                }
+            )
+
+        for key, value in confs.items():
+
+            try:
+                spark.conf.set(key, value)
+            except (
+                Py4JSecurityException,
+                Py4JError,
+                PySparkAttributeError,
+                AttributeError,
+                Exception,
+            ) as e:
+                if LOG_ENABLED:
+                    print(
+                        f"Failed to set Spark config '{key}' to '{value}' ({type(e).__name__}): {e}. Ignored"
+                    )
+
+    @staticmethod
+    def apply_defaults_once(spark: SparkSession) -> None:
+
+        from .flags import LOG_ENABLED
+
+        try:
+            if spark.conf.get("app.performance.defaults.applied", "false") != "true":
+                SparkConfig.apply_performance_defaults(
+                    spark,
+                    shuffle_partitions=int(
+                        os.getenv("SPARK_SQL_SHUFFLE_PARTITIONS", "256")
+                    ),
+                    broadcast_threshold_mb=int(
+                        os.getenv("SPARK_SQL_BROADCAST_MB", "128")
+                    ),
+                )
+
+                spark.conf.set("app.performance.defaults.applied", "true")
+
+                if LOG_ENABLED:
+                    print(
+                        "[INFO] Spark performance defaults applied "
+                        "(apply_defaults_once)."
+                    )
+
+        except Exception as e:
+            if LOG_ENABLED:
+                print(
+                    f"[WARN] Could not apply Spark defaults (once): "
+                    f"{type(e).__name__}: {e}"
+                )

@@ -7,32 +7,15 @@ from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
-# Local
-from servify.helpers import helper_reading_data as HelperReadingData
-from servify.logging import Logger
 from servify.settings import EnvSparkSettings
+from servify.settings.logging import Logger
 
-# Built-in
-
+# Local
+from servify.src.helpers import HelperReadingData
 
 __all__ = [
-    "ConfigError",
-    "DataValidationError",
-    "IoError",
     "servify_read",
 ]
-
-
-class ConfigError(Exception):
-    """Exceção para erros de configuração."""
-
-
-class DataValidationError(Exception):
-    """Exceção para erros de validação de dados."""
-
-
-class IoError(Exception):
-    """Exceção para erros de entrada/saída."""
 
 
 class servify_read:
@@ -41,7 +24,7 @@ class servify_read:
         self.spark = spark or EnvSparkSettings.get_or_create_spark(app_name="servify")
 
         # pylint: disable=import-outside-toplevel
-        from servify.servify_configs import LOG_ENABLED
+        from servify.settings.config.flags import LOG_ENABLED
 
         self._effective_log = LOG_ENABLED if log_enabled is None else log_enabled
 
@@ -56,7 +39,7 @@ class servify_read:
     @property
     def log(self):
         # pylint: disable=import-outside-toplevel
-        from servify.servify_configs import LOG_ENABLED
+        from servify.settings.config.flags import LOG_ENABLED
 
         if self._log is None or self._log.show_logs != LOG_ENABLED:
             self._log = Logger(self.spark, show_logs=LOG_ENABLED)
@@ -66,7 +49,7 @@ class servify_read:
     @property
     def helper_reading_data(self):
         # pylint: disable=import-outside-toplevel
-        from servify.servify_configs import LOG_ENABLED
+        from servify.settings.config.flags import LOG_ENABLED
 
         if self._helper is None or self._helper.log.show_logs != LOG_ENABLED:
             self._helper = HelperReadingData(self.spark, log_enabled=LOG_ENABLED)

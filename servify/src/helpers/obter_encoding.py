@@ -5,9 +5,9 @@ from servify.settings.logging import Logger
 from .sample_bytes import sample_bytes
 
 
-def obter_enconding(path: str, *, log: Logger) -> str:
+def obter_encoding(path: str, *, log: Logger) -> str:
 
-    raw = sample_bytes(path, sample_bytes=sample_bytes, log=log)
+    raw = sample_bytes(path, sample_bytes=1000000, log=log)
 
     log.info(f"Initialized encoding detection for file: {path}")
 

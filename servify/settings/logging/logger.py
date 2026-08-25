@@ -171,11 +171,8 @@ class Logger:
 
     def _persist_log_spark(self, record: dict[str, Any]) -> None:
 
-        if not getattr(self, "spark_log_paths", None):
-            return
+        target_table = self._target_table
 
-        target_table = self
-        self._target_table
         if not target_table:
             if self._log_target_checked:
                 return

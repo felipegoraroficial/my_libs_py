@@ -4,7 +4,7 @@ from typing import List
 from servify.settings.logging import Logger
 
 
-def list_xslx_paths(dir_path: str, *, log: Logger) -> List[str]:
+def list_xlsx_paths(dir_path: str, *, log: Logger) -> List[str]:
     """
     Lista todos os arquivos .xlsx em um diretório especificado.
     """

@@ -3,7 +3,7 @@ import re
 
 from servify.settings.logging import Logger
 
-from .obter_encoding import obter_enconding
+from .obter_encoding import obter_encoding
 from .resolve_latest_file import resolve_latest_file
 
 
@@ -11,7 +11,7 @@ def detectar_delimitador(path: str, *, log: Logger) -> str:
 
     arquivo_escolhido = resolve_latest_file(path, log=log)
 
-    encoding_detectado = obter_enconding(path, log=log)
+    encoding_detectado = obter_encoding(path, log=log)
 
     log.info(f"Starting delimiter detection for file: {arquivo_escolhido}")
 

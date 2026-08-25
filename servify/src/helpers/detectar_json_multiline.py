@@ -1,6 +1,6 @@
 from servify.settings.logging import Logger
 
-from .obter_encoding import obter_enconding
+from .obter_encoding import obter_encoding
 from .resolve_latest_file import resolve_latest_file
 
 
@@ -8,8 +8,8 @@ def detectar_json_multiline(path: str, *, log: Logger) -> bool:
 
     log.info(f"Starting JSON multiline detection for file: {path}")
 
-    arquivo_escolhido = resolve_latest_file(path)
-    encoding_detectado = obter_enconding(arquivo_escolhido)
+    arquivo_escolhido = resolve_latest_file(path, log=log)
+    encoding_detectado = obter_encoding(arquivo_escolhido, log=log)
 
     try:
         with open(arquivo_escolhido, "r", encoding=encoding_detectado) as f:

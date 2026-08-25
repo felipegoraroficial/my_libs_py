@@ -7,7 +7,7 @@ from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
-from servify.settings import EnvSparkSettings
+from servify.settings import SparkConfig
 from servify.settings.logging import Logger
 
 # Local
@@ -21,7 +21,7 @@ __all__ = [
 class servify_read:
 
     def __init__(self, spark=None, log_enabled: bool | None = None):
-        self.spark = spark or EnvSparkSettings.get_or_create_spark(app_name="servify")
+        self.spark = spark or SparkConfig.get_or_create_spark(app_name="servify")
 
         # pylint: disable=import-outside-toplevel
         from servify.settings.config.flags import LOG_ENABLED
@@ -31,7 +31,7 @@ class servify_read:
         self._log = None
         self._helper = None
 
-        self.settings = EnvSparkSettings(self.spark)
+        self.settings = SparkConfig(self.spark)
 
         if not hasattr(self, "_reading_data_initialized"):
             self._reading_data_initialized = True

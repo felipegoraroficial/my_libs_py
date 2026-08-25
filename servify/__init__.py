@@ -17,8 +17,8 @@ def read_data(
 ) -> DataFrame:
     global _reader, _last_log_state
 
-    from .settings.config.flags import (
-        LOG_ENABLED,  # pylint: disable=import-outside-toplevel
+    from .settings.config.flags import (  # pylint: disable=import-outside-toplevel
+        LOG_ENABLED,
     )
 
     if _reader is None or _last_log_state != LOG_ENABLED:
@@ -86,7 +86,7 @@ class _ServifyModule(ModuleType):
         )
 
     @property
-    def PERSIST_LOGS_CATALOG(self) -> str:
+    def PERSIST_LOGS_CATALOG(self) -> str | None:
         return _settings.PERSIST_LOGS_CATALOG
 
     @PERSIST_LOGS_CATALOG.setter
@@ -98,7 +98,7 @@ class _ServifyModule(ModuleType):
         )
 
     @property
-    def PERSIST_LOGS_SCHEMA(self) -> str:
+    def PERSIST_LOGS_SCHEMA(self) -> str | None:
         return _settings.PERSIST_LOGS_SCHEMA
 
     @PERSIST_LOGS_SCHEMA.setter

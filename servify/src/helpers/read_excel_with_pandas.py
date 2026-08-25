@@ -10,7 +10,7 @@ from servify.settings.logging import Logger
 from servify.src.commons.shared.core import Shared_Commons
 
 from .remove_header_rows import remove_header_rows
-from .sanitize_columns import saniteze_columns
+from .sanitize_columns import sanitize_columns
 
 
 def read_excel_with_pandas(
@@ -48,9 +48,9 @@ def read_excel_with_pandas(
         raise
 
     header_raw = df.iloc[first_valid_pos].tolist()
-    safe_cols = saniteze_columns(header_raw, prefer_from_schema=schema)
+    safe_cols = sanitize_columns(header_raw, prefer_from_schema=schema)
 
-    df = df.iloc[first_valid_pos + 1].dropna(how="all").reset_index(drop=True)
+    df = df.iloc[first_valid_pos + 1 :].dropna(how="all").reset_index(drop=True)
 
     for c in range(len(safe_cols)):
         col = df.columns[c]
@@ -80,7 +80,7 @@ def read_excel_with_pandas(
 
         sdf = sdf.select([F.col(c).cast("string").alias(c) for c in sdf.columns])
         sdf = sdf.withColumn("source_file", F.lit(os.path.basename(xlsx_path)))
-        sdf = remove_header_rows(sdf)
+        sdf = remove_header_rows(sdf, log=log)
 
         return sdf
 
@@ -96,6 +96,6 @@ def read_excel_with_pandas(
 
     sdf = commons_shared.aplicar_schema_df(sdf, schema)
 
-    sdf = remove_header_rows(sdf)
+    sdf = remove_header_rows(sdf, log=log)
 
     return sdf

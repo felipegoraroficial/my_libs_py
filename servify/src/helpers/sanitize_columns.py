@@ -5,7 +5,7 @@ from typing import List, Optional
 from pyspark.sql import types as T
 
 
-def saniteze_columns(
+def sanitize_columns(
     header_cells: List, *, prefer_from_schema: Optional[T.StructType] = None
 ) -> List[str]:
 

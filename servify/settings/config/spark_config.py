@@ -52,7 +52,7 @@ class SparkConfig:
                 return False
 
             return (
-                spark.conf.get("spark.databricks.ckusterUsageTags,clusterName", None)
+                spark.conf.get("spark.databricks.clusterUsageTags.clusterName", None)
                 is not None
             )
         except Exception:
@@ -186,7 +186,7 @@ class SparkConfig:
         enable_delta_optimeze: bool = True,
     ) -> None:
 
-        from .flags import LOG_ENABLED
+        from .flags import LOG_ENABLED  # pylint: disable=import-outside-toplevel
 
         confs = {
             "spark.sql.adaptive.enabled": "true",
@@ -198,7 +198,7 @@ class SparkConfig:
             ),
             "spark.sql.parquet.filterPushdown": "true",
             "spark.sql.parquet.mergeSchema": "false",
-            "spark.sql.file.ignoreCorruptFiles": "true",
+            "spark.sql.files.ignoreCorruptFiles": "true",
             "spark.databricks.delta.schema.autoMerge.enabled": "true",
         }
 
@@ -241,7 +241,7 @@ class SparkConfig:
     @staticmethod
     def apply_defaults_once(spark: SparkSession) -> None:
 
-        from .flags import LOG_ENABLED
+        from .flags import LOG_ENABLED  # pylint: disable=import-outside-toplevel
 
         try:
             if spark.conf.get("app.performance.defaults.applied", "false") != "true":

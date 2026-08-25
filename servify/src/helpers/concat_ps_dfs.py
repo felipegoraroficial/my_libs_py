@@ -29,7 +29,7 @@ def concat_ps_dfs(
         return read_excel_with_pandas(
             spark=spark,
             log=log,
-            path=lista_files[0],
+            xlsx_path=lista_files[0],
             schema=schema,
             commons_shared=commons_shared,
         )
@@ -39,7 +39,7 @@ def concat_ps_dfs(
     df_final = read_excel_with_pandas(
         spark=spark,
         log=log,
-        path=lista_files[0],
+        xlsx_path=lista_files[0],
         schema=schema,
         commons_shared=commons_shared,
     )
@@ -49,7 +49,7 @@ def concat_ps_dfs(
         df = read_excel_with_pandas(
             spark=spark,
             log=log,
-            path=file,
+            xlsx_path=file,
             schema=schema,
             commons_shared=commons_shared,
         )

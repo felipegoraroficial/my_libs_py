@@ -38,7 +38,9 @@ def resolve_target_table(spark) -> Optional[str]:
     if not PERSIST_LOGS_CATALOG or not PERSIST_LOGS_SCHEMA:
         return None
 
-    target = f"`{PERSIST_LOGS_CATALOG}.{PERSIST_LOGS_SCHEMA}.{PERSIST_LOG_TABLE_NAME}`"
+    target = (
+        f"`{PERSIST_LOGS_CATALOG}`.`{PERSIST_LOGS_SCHEMA}`.`{PERSIST_LOG_TABLE_NAME}`"
+    )
 
     try:
         spark.sql(

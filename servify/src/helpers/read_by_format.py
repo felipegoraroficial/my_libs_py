@@ -4,7 +4,7 @@ from pyspark.sql import functions as F
 from .analisar_quote_for_path import analisar_quote_for_path
 from .detectar_delimitador import detectar_delimitador
 from .detectar_json_multiline import detectar_json_multiline
-from .obter_encoding import obter_enconding
+from .obter_encoding import obter_encoding
 
 
 def read_by_format(
@@ -21,8 +21,8 @@ def read_by_format(
 
     if file_format in {"csv", "txt"}:
         if path_validado.startswith(("/Volumes", "dbfs:", "file:")):
-            sep = detectar_delimitador(path_validado)
-            encoding = obter_enconding(path_validado)
+            sep = detectar_delimitador(path_validado, log=log)
+            encoding = obter_encoding(path_validado, log=log)
             log.info(f"separator detected: {sep} | encoding detected: {encoding}")
         else:
             sep = ","
@@ -67,7 +67,7 @@ def read_by_format(
 
     elif file_format == "json":
         if path_validado.startswith(("/Volumes", "dbfs:", "file:")):
-            multiline = detectar_json_multiline(path_validado)
+            multiline = detectar_json_multiline(path_validado, log=log)
             log.info(f"JSON multiline detected: {multiline}")
             df = spark.read.option("multiline", str(multiline).lower()).json(
                 path_validado

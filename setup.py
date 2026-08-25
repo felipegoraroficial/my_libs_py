@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as arq:
 
 setup(
     name="servify",
-    version="0.1.4",
+    version="0.1.5",
     license="MIT",
     author="Felipe Pegoraro",
     author_email="felipepegoraro93@gmail.com",
@@ -13,7 +13,7 @@ setup(
     long_description=readme,
     long_description_content_type="text/markdown",
     keywords="databricks spark pyspark",
-    packages=find_packages(),
+    packages=find_packages(include=["servify", "servify.*"]),
     install_requires=[
         "loguru>=0.7.3",
         "holidays>=0.88",

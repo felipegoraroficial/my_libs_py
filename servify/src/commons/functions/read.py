@@ -86,7 +86,7 @@ class servify_read:
 
             self.log.info(f"Reading .xlsx file in directory: {path}")
 
-            paths = self.helper_reading_data.list_xslx_paths(path)
+            paths = self.helper_reading_data.list_xlsx_paths(path)
 
             df = self.helper_reading_data.concat_ps_dfs(paths, schema)
 

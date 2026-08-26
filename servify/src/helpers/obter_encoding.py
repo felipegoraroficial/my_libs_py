@@ -20,6 +20,7 @@ SUPPORTED_ENCODINGS = {
     "latin1": "iso-8859-1",
     "windows-1252": "iso-8859-1",
     "cp1252": "iso-8859-1",
+    "iso8859-16": "iso-8859-1",
 }
 
 
@@ -53,59 +54,19 @@ def obter_encoding(path: str, *, log: Logger) -> str:
             SUPPORTED_ENCODINGS.get(encoding_detectado) if encoding_detectado else None
         )
 
-        if encoding_normalizado:
-
-            try:
-                raw.decode(encoding_normalizado)
-
-                encoding_detectado = encoding_normalizado
-
-            except UnicodeDecodeError:
-
-                log.warning(
-                    f"Detected encoding "
-                    f"'{encoding_normalizado}' "
-                    f"could not decode sample content. "
-                    f"Starting fallback validation."
-                )
-
-                encoding_detectado = None
-
-        else:
+        if encoding_normalizado is None:
 
             log.warning(
                 f"Unsupported encoding detected "
                 f"'{encoding_detectado}'. "
-                f"Starting fallback validation."
+                f"Using default encoding 'utf-8'."
             )
 
-            encoding_detectado = None
+            encoding_detectado = "utf-8"
 
-        # Fallback genérico baseado apenas nos
-        # encodings suportados pela biblioteca
-        if encoding_detectado is None:
+        else:
 
-            candidatos = list(dict.fromkeys(SUPPORTED_ENCODINGS.values()))
-
-            for candidato in candidatos:
-                try:
-
-                    raw.decode(candidato)
-
-                    encoding_detectado = candidato
-
-                    log.info(f"Fallback encoding selected: {encoding_detectado}")
-
-                    break
-
-                except UnicodeDecodeError:
-                    continue
-
-        if encoding_detectado is None:
-
-            raise ValueError(
-                "Unable to determine a valid encoding for the sampled content."
-            )
+            encoding_detectado = encoding_normalizado
 
     except Exception as e:
 

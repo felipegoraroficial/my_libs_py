@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as arq:
 
 setup(
     name="servify",
-    version="0.1.7",
+    version="0.1.8",
     license="MIT",
     author="Felipe Pegoraro",
     author_email="felipepegoraro93@gmail.com",

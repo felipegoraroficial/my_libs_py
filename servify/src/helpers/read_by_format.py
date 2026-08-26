@@ -1,5 +1,6 @@
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
+from pyspark.sql.types import ArrayType, StructType
 
 from .analisar_quote_for_path import analisar_quote_for_path
 from .detectar_delimitador import detectar_delimitador
@@ -72,6 +73,24 @@ def read_by_format(
             df = spark.read.option("multiline", str(multiline).lower()).json(
                 path_validado
             )
+
+            if len(df.columns) == 1:
+
+                coluna = df.columns[0]
+
+                campo = df.schema[coluna]
+
+                if isinstance(campo.dataType, ArrayType) and isinstance(
+                    campo.dataType.elementType,
+                    StructType,
+                ):
+
+                    log.info(f"Flattening array column '{coluna}'.")
+
+                    df = df.withColumn(coluna, F.explode(F.col(coluna))).select(
+                        f"{coluna}.*"
+                    )
+
         else:
             log.info(f"Using default JSON multiline 'false' for {path_validado}.")
             df = spark.read.json(path_validado)

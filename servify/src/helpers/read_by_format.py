@@ -43,7 +43,7 @@ def read_by_format(
         escape_style = analise.get("escape_style")
         if escape_style == "csv_double":
             escape = '"'
-        elif escape_style == "backlash":
+        elif escape_style == "backslash":
             escape = "\\"
         else:
             escape = None

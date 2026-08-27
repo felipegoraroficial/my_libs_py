@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import types as T
@@ -13,7 +13,7 @@ def concat_ps_dfs(
     spark: SparkSession,
     log: Logger,
     lista_files: List[str],
-    schema: T.StructType,
+    schema: Optional[T.StructType],
     commons_shared,
 ) -> DataFrame:
     """

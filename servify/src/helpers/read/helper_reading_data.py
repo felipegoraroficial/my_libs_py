@@ -52,7 +52,7 @@ class HelperReadingData:
     def concat_ps_dfs(
         self,
         paths: List[str],
-        schema: T.StructType,
+        schema: Optional[T.StructType],
     ) -> DataFrame:
         return concat_ps_dfs(
             spark=self.spark,

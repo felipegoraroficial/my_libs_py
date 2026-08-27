@@ -19,6 +19,14 @@ df = sf.read_data(
     "/Volumes/meu_catalogo/meu_schema/volume/arquivo.csv", "csv")
 ```
 
+Para arquivos XLSX, o schema é opcional. Quando não informado, a lib usa a
+primeira linha como cabeçalho e infere automaticamente os tipos das colunas:
+
+```python
+df = sf.read_data(
+    "/Volumes/meu_catalogo/meu_schema/volume/arquivos_xlsx/", "xlsx")
+```
+
 ## Configuração (opcional)
 
 Antes de chamar `sf.read_data(...)`, o usuário pode ajustar as opções abaixo

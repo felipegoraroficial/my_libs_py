@@ -11,6 +11,7 @@ from servify.src.commons.shared.core import Shared_Commons
 
 from .remove_header_rows import remove_header_rows
 from .sanitize_columns import sanitize_columns
+from .schema_inference import infer_schema
 
 
 def read_excel_with_pandas(
@@ -19,7 +20,7 @@ def read_excel_with_pandas(
     log: Logger,
     commons_shared: Shared_Commons,
     xlsx_path: str,
-    schema: T.StructType,
+    schema: T.StructType | None,
     sheet_name: int = 0,
 ) -> DataFrame:
     """
@@ -32,7 +33,7 @@ def read_excel_with_pandas(
         df = pd.read_excel(
             xlsx_path,
             engine="openpyxl",
-            header=0,
+            header=None,
             sheet_name=sheet_name,
         )
 
@@ -50,7 +51,36 @@ def read_excel_with_pandas(
     header_raw = df.iloc[first_valid_pos].tolist()
     safe_cols = sanitize_columns(header_raw, prefer_from_schema=schema)
 
-    df = df.iloc[first_valid_pos + 1 :].dropna(how="all").reset_index(drop=True)
+    data_start = first_valid_pos if schema is not None else first_valid_pos + 1
+    df = df.iloc[data_start:].dropna(how="all").reset_index(drop=True)
+
+    if schema is None:
+        df.columns = safe_cols
+
+        inferred_schema = infer_schema(df)
+        log.info(f"Schema inferred automatically from XLSX: {inferred_schema}")
+
+        for column, field in zip(df.columns, inferred_schema.fields):
+            values = df[column].where(~df[column].isna(), None)
+            if isinstance(field.dataType, T.StringType):
+                values = values.map(
+                    lambda value: str(value) if value is not None else None
+                )
+            df[column] = values
+
+        try:
+            sdf = spark.createDataFrame(df, schema=inferred_schema)
+        except Exception as e:
+            log.error("Spark failed to create DataFrame with inferred schema.")
+            log.debug(f"Internal Spark error: {e}")
+            raise
+
+        sdf = sdf.withColumn("source_file", F.lit(os.path.basename(xlsx_path)))
+        sdf = remove_header_rows(sdf, log=log)
+
+        return sdf
+
+    df.columns = safe_cols
 
     for c in range(len(safe_cols)):
         col = df.columns[c]
@@ -59,32 +89,6 @@ def read_excel_with_pandas(
             .where(~df[col].isna(), None)
             .map(lambda x: str(x) if x is not None else None)
         )
-
-    if schema is None:
-        df.columns = safe_cols
-
-        log.info(
-            "Using safe conversion mode to avoid internal Serverless Arrow errors."
-        )
-
-        string_schema = T.StructType(
-            [T.StructField(c, T.StringType(), True) for c in df.columns]
-        )
-
-        try:
-            sdf = spark.createDataFrame(df, schema=string_schema)
-        except Exception as e:
-            log.error("Spark Serverless failed to create DataFrame even in safe mode.")
-            log.debug(f"Internal Spark error: {e}")
-            raise
-
-        sdf = sdf.select([F.col(c).cast("string").alias(c) for c in sdf.columns])
-        sdf = sdf.withColumn("source_file", F.lit(os.path.basename(xlsx_path)))
-        sdf = remove_header_rows(sdf, log=log)
-
-        return sdf
-
-    df.columns = safe_cols
 
     string_schema = T.StructType(
         [T.StructField(c, T.StringType(), True) for c in df.columns]

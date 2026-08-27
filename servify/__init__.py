@@ -4,7 +4,7 @@ from types import ModuleType
 from pyspark.sql import DataFrame
 
 from .settings.config import flags as _settings
-from .src.commons import servify_read
+from .src.commons import servify_normalization, servify_read
 
 _reader: servify_read | None = None
 _last_log_state: bool | None = None
@@ -26,6 +26,15 @@ def read_data(
         _last_log_state = LOG_ENABLED
 
     return _reader.read_data(path, formato, **kwargs)
+
+
+def normalization(df, tipo: str, **kwargs):
+    """Normaliza colunas de um DataFrame Spark conforme o tipo informado."""
+
+    normalizer = servify_normalization(
+        spark=df.sparkSession, log_enabled=_settings.LOG_ENABLED
+    )
+    return normalizer.normalization(df, tipo, **kwargs)
 
 
 def show_options() -> None:
@@ -112,4 +121,10 @@ class _ServifyModule(ModuleType):
 
 sys.modules[__name__].__class__ = _ServifyModule
 
-__all__ = ["read_data", "servify_read", "show_options"]
+__all__ = [
+    "read_data",
+    "normalization",
+    "servify_read",
+    "servify_normalization",
+    "show_options",
+]

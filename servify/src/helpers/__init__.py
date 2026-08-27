@@ -1,3 +1,10 @@
+from .normalization import (
+    tratativa_datetype,
+    tratativa_floattype,
+    tratativa_inttype,
+    tratativa_stringtype,
+    tratativa_timestamptype,
+)
 from .read import (
     HelperReadingData,
     analisar_quote_for_path,
@@ -38,4 +45,9 @@ __all__ = [
     "remove_header_rows",
     "sanitize_columns",
     "HelperReadingData",
+    "tratativa_datetype",
+    "tratativa_floattype",
+    "tratativa_inttype",
+    "tratativa_stringtype",
+    "tratativa_timestamptype",
 ]

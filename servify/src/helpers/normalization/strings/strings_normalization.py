@@ -112,13 +112,22 @@ def validate_string_after_transform(
         log.info(f"[Amostra] Coluna '{c}' tratada com sucesso")
 
 
-def tratativa_stringtype(df: DataFrame, Log) -> DataFrame:
+def tratativa_stringtype(
+    df: DataFrame,
+    Log,
+    string_cols: list[str] | None = None,
+) -> DataFrame:
 
     Log.info("Iniciando tratativa de colunas do tipo STRING.")
 
-    string_cols = [
-        f.name for f in df.schema.fields if f.dataType.simpleString() == "string"
-    ]
+    if string_cols is None:
+        string_cols = [
+            f.name for f in df.schema.fields if f.dataType.simpleString() == "string"
+        ]
+    else:
+        invalid_cols = [c for c in string_cols if c not in df.columns]
+        if invalid_cols:
+            raise ValueError(f"Colunas inexistentes: {invalid_cols}")
 
     Log.debug(f"Colunas do tipo STRING identificadas: {string_cols}")
 

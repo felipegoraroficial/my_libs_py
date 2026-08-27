@@ -27,6 +27,30 @@ df = sf.read_data(
     "/Volumes/meu_catalogo/meu_schema/volume/arquivos_xlsx/", "xlsx")
 ```
 
+## Normalização
+
+As normalizações são acessadas pela fachada `sf.normalization`. Para `strings`,
+as colunas são opcionais e, quando omitidas, todas as colunas string são tratadas.
+Para os demais tipos, informe a lista de colunas. Datas também precisam do formato:
+
+```python
+df = sf.normalization(df, "strings")
+df = sf.normalization(df, "int", columns=["idade"])
+df = sf.normalization(df, "float", columns=["salario"])
+df = sf.normalization(
+    df,
+    "date",
+    columns=["data_nascimento"],
+    formato="dd/MM/yyyy",
+)
+df = sf.normalization(
+    df,
+    "timestamp",
+    columns=["criado_em"],
+    formato="yyyy-MM-dd HH:mm:ss",
+)
+```
+
 ## Configuração (opcional)
 
 Antes de chamar `sf.read_data(...)`, o usuário pode ajustar as opções abaixo

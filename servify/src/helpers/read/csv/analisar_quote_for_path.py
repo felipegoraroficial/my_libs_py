@@ -1,10 +1,10 @@
 from typing import Any, Dict
 
+from ..commons.sample_bytes import sample_bytes
 from .detect_dominant_quote_char import detect_dominant_quote_char
 from .detect_escape_style import detect_escape_style
 from .has_quoted_newline_from_text import has_quoted_newline_from_text
 from .line_quote_balance_stats import line_quote_balance_stats
-from .sample_bytes import sample_bytes
 
 
 def analisar_quote_for_path(

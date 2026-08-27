@@ -22,10 +22,10 @@ def concat_ps_dfs(
 
     if not lista_files:
         log.warning("No DataFrames provided for concatenation.")
-        raise ValueError("No DataFrames provided for concatenation.")
+        raise FileNotFoundError("No file provided for concatenation.")
 
     if len(lista_files) == 1:
-        log.info("Only one DataFrame provided, returning it directly.")
+        log.info("Only one file provided, returning it directly.")
         return read_excel_with_pandas(
             spark=spark,
             log=log,

@@ -3,8 +3,8 @@ import re
 
 from servify.settings.logging import Logger
 
-from .obter_encoding import obter_encoding
-from .resolve_latest_file import resolve_latest_file
+from ..commons.obter_encoding import obter_encoding
+from ..commons.resolve_latest_file import resolve_latest_file
 
 
 def detectar_delimitador(path: str, *, log: Logger) -> str:

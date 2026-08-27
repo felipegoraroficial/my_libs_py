@@ -32,7 +32,7 @@ def sanitize_columns(
             if target_names and i < len(target_names):
                 base = target_names[i]
             else:
-                base = f"c_{i+1}"
+                base = f"_c{i+1}"
         else:
             base = str(h).replace("\n", " ").replace("\r", " ").strip()
 
@@ -40,7 +40,7 @@ def sanitize_columns(
         base = re.sub(r"[^0-9a-zA-Z_]", "", base)
 
         if base[0].isdigit():
-            base = f"c_{base}"
+            base = f"_c{base}"
 
         name = base
         k = 1

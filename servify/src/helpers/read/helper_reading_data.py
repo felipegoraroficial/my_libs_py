@@ -6,10 +6,10 @@ from pyspark.sql import types as T
 from servify.settings.logging import Logger
 from servify.src.commons.shared.core import Shared_Commons
 
-from .concat_ps_dfs import concat_ps_dfs
-from .list_xlsx_paths import list_xlsx_paths
+from .commons.resolve_accessible_path import resolve_accessible_path
 from .read_by_format import read_by_format
-from .resolve_accessible_path import resolve_accessible_path
+from .xslx.concat_ps_dfs import concat_ps_dfs
+from .xslx.list_xlsx_paths import list_xlsx_paths
 
 __all__ = ["HelperReadingData"]
 

@@ -33,6 +33,6 @@ def list_xlsx_paths(dir_path: str, *, log: Logger) -> List[str]:
         return paths
 
     log.error(f"The specified path is neither a file nor a directory: {dir_path}")
-    raise ValueError(
+    raise FileNotFoundError(
         f"The specified path is neither a file nor a directory: {dir_path}"
     )

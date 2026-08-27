@@ -2,10 +2,10 @@ from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.types import ArrayType, StructType
 
-from .analisar_quote_for_path import analisar_quote_for_path
-from .detectar_delimitador import detectar_delimitador
-from .detectar_json_multiline import detectar_json_multiline
-from .obter_encoding import obter_encoding
+from .commons.obter_encoding import obter_encoding
+from .csv.analisar_quote_for_path import analisar_quote_for_path
+from .csv.detectar_delimitador import detectar_delimitador
+from .json.detectar_json_multiline import detectar_json_multiline
 
 
 def read_by_format(

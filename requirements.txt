@@ -4,6 +4,7 @@ loguru == 0.7.3
 holidays == 0.88
 pandas == 2.3.2
 pyarrow == 21.0.0
+chardet == 5.2.0
 
 # Dev tools
 black == 25.1.0
@@ -19,6 +20,7 @@ pylint-celery == 0.3
 pylint-plugin-utils == 0.9.0
 
 # Stubs
+pandas-stubs == 2.3.2.250827
 types-chardet == 5.0.4.6
 types-openpyxl == 3.1.5.20250516
 types-tqdm == 4.67.0.20250516

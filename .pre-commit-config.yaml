@@ -23,11 +23,11 @@ repos:
 
     - id: prospector # Analisa a qualidade do código Python que combina com (pylint, pep8, etc...)
       name: prospector local
-      entry: prospector
+      entry: python -m prospector
       language: system
       types: [python]
       pass_filenames: false
-      args: [servify/]
+      args: [servify/, -i, "tests"]
 
     
     - id: pytest # Executa testes automatizados com pytest

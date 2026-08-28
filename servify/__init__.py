@@ -30,6 +30,8 @@ def read_data(
 
 def normalization(df, tipo: str, **kwargs):
     """Normaliza colunas de um DataFrame Spark conforme o tipo informado."""
+    if df is None:
+        raise ValueError("DataFrame de entrada é obrigatório.")
 
     normalizer = servify_normalization(
         spark=df.sparkSession, log_enabled=_settings.LOG_ENABLED
